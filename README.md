@@ -1,31 +1,23 @@
-# 📱 RedProfesional
+# RedProfesional
 
 Aplicación móvil desarrollada en **Flutter** con **Firebase** para conectar profesionales independientes con clientes que requieren sus servicios.
 
----
-
-## 📌 Descripción del Proyecto
+## Descripción del Proyecto
 
 RedProfesional es una plataforma móvil que permite a profesionales como abogados, contadores, arquitectos e ingenieros crear perfiles digitales donde puedan mostrar su experiencia, especialidades y portafolio.
 
 Los clientes podrán buscar profesionales por categoría, visualizar su información detallada, enviar solicitudes de servicio y calificar la experiencia una vez finalizada.
 
----
-
-## 🎯 Objetivo General
+## Objetivo General
 
 Desarrollar una aplicación móvil que facilite la contratación de servicios profesionales de manera segura, organizada y confiable.
 
----
-
-## 👥 Actores del Sistema
+## Actores del Sistema
 
 - Cliente
 - Profesional
 
----
-
-## ⚙️ Funcionalidades Principales
+##  Funcionalidades Principales
 
 ### Cliente:
 - Registro e inicio de sesión con Google
@@ -39,9 +31,7 @@ Desarrollar una aplicación móvil que facilite la contratación de servicios pr
 - Gestión de solicitudes
 - Visualización de calificaciones
 
----
-
-## 🛠 Tecnologías Utilizadas
+##  Tecnologías Utilizadas
 
 - Flutter (Dart)
 - Firebase Authentication
@@ -49,14 +39,10 @@ Desarrollar una aplicación móvil que facilite la contratación de servicios pr
 - Firebase Storage
 - GitHub
 
----
-
-## 🏗 Arquitectura
+## Arquitectura
 
 Aplicación móvil desarrollada en Flutter conectada a servicios en la nube mediante Firebase para autenticación, almacenamiento y base de datos en tiempo real.
 
----
-
-## 📌 Estado del Proyecto
+## Estado del Proyecto
 
 Proyecto en fase de planificación y diseño estructural.

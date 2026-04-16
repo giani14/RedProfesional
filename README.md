@@ -1,6 +1,6 @@
 # RedProfesional
 
-Aplicación móvil desarrollada en **Read** con **Supabase** para conectar profesionales independientes con clientes que requieren sus servicios.
+Aplicación móvil desarrollada en **React Native** con **Supabase** para conectar profesionales independientes con clientes que requieren sus servicios.
 
 ## Descripción del Proyecto
 
@@ -31,12 +31,17 @@ Desarrollar una aplicación móvil que facilite la contratación de servicios pr
 - Gestión de solicitudes
 - Visualización de calificaciones
 
+### Acministrador
+
+
+
+
+
+
 ##  Tecnologías Utilizadas
 
-- Flutter (Dart)
-- Firebase Authentication
-- Cloud Firestore
-- Firebase Storage
+- React Native
+- Supabase
 - GitHub
 
 ## Arquitectura

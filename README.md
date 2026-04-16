@@ -1,6 +1,6 @@
 # RedProfesional
 
-Aplicación móvil desarrollada en **Flutter** con **Firebase** para conectar profesionales independientes con clientes que requieren sus servicios.
+Aplicación móvil desarrollada en **Read** con **Supabase** para conectar profesionales independientes con clientes que requieren sus servicios.
 
 ## Descripción del Proyecto
 
@@ -13,7 +13,7 @@ Los clientes podrán buscar profesionales por categoría, visualizar su informac
 Desarrollar una aplicación móvil que facilite la contratación de servicios profesionales de manera segura, organizada y confiable.
 
 ## Actores del Sistema
-
+- Administrador
 - Cliente
 - Profesional
 

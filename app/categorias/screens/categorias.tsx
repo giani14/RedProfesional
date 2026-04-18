@@ -2,15 +2,14 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useMemo, useState } from "react";
 import {
-    Alert,
-    FlatList,
-    ListRenderItem,
-    Modal,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  FlatList,
+  ListRenderItem,
+  Modal,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 // Types
@@ -29,7 +28,7 @@ const initialCategories: Category[] = [
   { id: "6", name: "Desarrollo Móvil", count: 20 },
 ];
 
-export default function PantallaCategorias() {
+export default function PantallaCategorias({ navigation }: any) {
   // State
   const [query, setQuery] = useState("");
   const [categories, setCategories] = useState<Category[]>(initialCategories);
@@ -41,6 +40,10 @@ export default function PantallaCategorias() {
   const [modalVisible, setModalVisible] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [inputName, setInputName] = useState("");
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<Category | null>(
+    null,
+  );
 
   // Derived
   const filtered = useMemo(() => {
@@ -61,7 +64,7 @@ export default function PantallaCategorias() {
     setEditingCategory(null);
     setInputName("");
     //setModalVisible(true);
-    router.push("/categorias/screens/pantallaNuevaCategoria");
+    navigation.navigate("NuevaCategoria");
   };
 
   const openEdit = (cat: Category) => {
@@ -94,17 +97,19 @@ export default function PantallaCategorias() {
     setInputName("");
   };
 
-  const deleteCategory = (id: string) => {
-    Alert.alert("Eliminar", "¿Seguro que quieres eliminar esta categoría?", [
-      { text: "Cancelar" },
-      {
-        text: "Eliminar",
-        style: "destructive",
-        onPress: () => {
-          setCategories((prev) => prev.filter((c) => c.id !== id));
-        },
-      },
-    ]);
+  const openDeleteModal = (cat: Category) => {
+    setSelectedCategory(cat);
+    setDeleteModalVisible(true);
+  };
+
+  const confirmDelete = () => {
+    if (!selectedCategory) return;
+    navigation.navigate("CategoriaEliminada", {
+      categoryName: selectedCategory.name,
+    });
+    setCategories((prev) => prev.filter((c) => c.id !== selectedCategory.id));
+    setDeleteModalVisible(false);
+    setSelectedCategory(null);
   };
 
   const renderItem: ListRenderItem<Category> = ({ item }) => (
@@ -123,7 +128,7 @@ export default function PantallaCategorias() {
         <TouchableOpacity onPress={() => openEdit(item)}>
           <Ionicons name="create-outline" size={20} color="#2563eb" />
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => deleteCategory(item.id)}>
+        <TouchableOpacity onPress={() => openDeleteModal(item)}>
           <Ionicons name="trash-outline" size={20} color="#ef4444" />
         </TouchableOpacity>
       </View>
@@ -210,11 +215,107 @@ export default function PantallaCategorias() {
           </View>
         </View>
       </Modal>
+
+      <Modal visible={deleteModalVisible} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalBox}>
+            <TouchableOpacity
+              style={styles.closeBtn}
+              onPress={() => setDeleteModalVisible(false)}
+            >
+              <Ionicons name="close" size={18} />
+            </TouchableOpacity>
+
+            <View style={styles.iconWarning}>
+              <Ionicons name="warning-outline" size={28} color="#ef4444" />
+            </View>
+
+            <Text style={styles.modalETitle}>Eliminar categoría</Text>
+
+            <Text style={styles.modalText}>
+              ¿Estás seguro que deseas eliminar "{selectedCategory?.name}"?
+            </Text>
+
+            <Text style={styles.modalSubText}>
+              Esta acción no se puede deshacer.
+            </Text>
+
+            <TouchableOpacity
+              style={styles.deleteButton}
+              onPress={confirmDelete}
+            >
+              <Text style={styles.deleteText}>Eliminar categoría</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.cancelButton}
+              onPress={() => setDeleteModalVisible(false)}
+            >
+              <Text style={styles.cancelText}>Cancelar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "flex-end",
+  },
+  modalBox: {
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+  },
+  closeBtn: {
+    position: "absolute",
+    right: 15,
+    top: 15,
+  },
+  iconWarning: {
+    backgroundColor: "#fee2e2",
+    alignSelf: "center",
+    padding: 16,
+    borderRadius: 50,
+    marginBottom: 10,
+  },
+  modalETitle: {
+    textAlign: "center",
+    fontWeight: "bold",
+    fontSize: 16,
+    marginBottom: 8,
+  },
+  modalText: {
+    textAlign: "center",
+    marginBottom: 6,
+  },
+  modalSubText: {
+    textAlign: "center",
+    fontSize: 12,
+    color: "#6b7280",
+    marginBottom: 16,
+  },
+  deleteButton: {
+    backgroundColor: "#ef4444",
+    padding: 14,
+    borderRadius: 12,
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  deleteText: { color: "#fff", fontWeight: "600" },
+  cancelButton: {
+    borderWidth: 1,
+    borderColor: "#2563eb",
+    padding: 14,
+    borderRadius: 12,
+    alignItems: "center",
+  },
+  cancelText: { color: "#2563eb", fontWeight: "600" },
   container: { flex: 1, backgroundColor: "#f3f4f6", padding: 16 },
   header: {
     flexDirection: "row",

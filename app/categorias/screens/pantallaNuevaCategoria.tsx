@@ -1,8 +1,7 @@
-import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
   Image,
-  SafeAreaView,
+  KeyboardAvoidingView,
   StyleSheet,
   Text,
   TextInput,
@@ -10,20 +9,32 @@ import {
   View,
 } from "react-native";
 
-export default function NuevaCategoriaScreen() {
+export default function NuevaCategoriaScreen({ navigation }: any) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const router = useRouter();
 
   const handleSave = () => {
     if (!name.trim()) return;
+    navigation.goBack();
 
     // Aquí luego conectarás con backend
     console.log({ name, description });
   };
 
+  const handleNameInput = (text: string) => {
+    if (text.length <= 50) {
+      setName(text);
+    }
+  };
+
+  const handleDescriptionInput = (text: string) => {
+    if (text.length <= 120) {
+      setDescription(text);
+    }
+  };
+
   return (
-    <SafeAreaView style={styles.container}>
+    <KeyboardAvoidingView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity>
@@ -51,11 +62,14 @@ export default function NuevaCategoriaScreen() {
         </Text>
 
         {/* Nombre */}
-        <Text style={styles.label}>Nombre de la categoría</Text>
+        <View style={styles.labelRow}>
+          <Text style={styles.label}> Nombre de la categoría (opcional)</Text>
+          <Text style={styles.counter}>{name.length}/50</Text>
+        </View>
         <TextInput
           placeholder="Ej. Inteligencia Artificial"
           value={name}
-          onChangeText={setName}
+          onChangeText={handleNameInput}
           style={styles.input}
         />
 
@@ -68,7 +82,7 @@ export default function NuevaCategoriaScreen() {
         <TextInput
           placeholder="Describe brevemente qué incluye esta categoría"
           value={description}
-          onChangeText={setDescription}
+          onChangeText={handleDescriptionInput}
           style={[styles.input, styles.textArea]}
           multiline
           maxLength={120}
@@ -79,18 +93,18 @@ export default function NuevaCategoriaScreen() {
           <Text style={styles.buttonText}>Guardar categoría</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity onPress={() => router.back()}>
+        <TouchableOpacity onPress={() => navigation.goBack()}>
           <Text style={styles.cancel}>Cancelar</Text>
         </TouchableOpacity>
       </View>
-    </SafeAreaView>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f3f4f6",
+    backgroundColor: "#ffffff",
   },
   header: {
     backgroundColor: "#1e3a8a",

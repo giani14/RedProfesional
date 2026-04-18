@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import React, { useMemo, useState } from "react";
 import {
     Alert,
@@ -33,6 +34,7 @@ export default function PantallaCategorias() {
   const [query, setQuery] = useState("");
   const [categories, setCategories] = useState<Category[]>(initialCategories);
   const [page, setPage] = useState(1);
+  const router = useRouter();
   const pageSize = 5;
 
   // Modal state
@@ -58,7 +60,8 @@ export default function PantallaCategorias() {
   const openCreate = () => {
     setEditingCategory(null);
     setInputName("");
-    setModalVisible(true);
+    //setModalVisible(true);
+    router.push("/categorias/screens/pantallaNuevaCategoria");
   };
 
   const openEdit = (cat: Category) => {

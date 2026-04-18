@@ -1,36 +1,33 @@
-import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
-    Button,
-    Image,
-    SafeAreaView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Image,
+  SafeAreaView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
-export default function NuevaCategoriaScreen({ navigation }: any) {
+export default function NuevaCategoriaScreen() {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const router = useRouter();
 
   const handleSave = () => {
     if (!name.trim()) return;
 
     // Aquí luego conectarás con backend
     console.log({ name, description });
-
-    navigation.goBack();
   };
 
   return (
     <SafeAreaView style={styles.container}>
-      <Button title="boton" />
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={22} color="#fff" />
+        <TouchableOpacity>
+          {/*<Ionicons name="arrow-back" size={22} color="#fff" />*/}
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Nueva categoría</Text>
 
@@ -82,7 +79,7 @@ export default function NuevaCategoriaScreen({ navigation }: any) {
           <Text style={styles.buttonText}>Guardar categoría</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity onPress={() => navigation.goBack()}>
+        <TouchableOpacity onPress={() => router.back()}>
           <Text style={styles.cancel}>Cancelar</Text>
         </TouchableOpacity>
       </View>

@@ -1,4 +1,6 @@
+import { RootStackParamList } from "@/app/navigation/types";
 import { Ionicons } from "@expo/vector-icons";
+import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useRouter } from "expo-router";
 import React, { useMemo, useState } from "react";
 import {
@@ -28,7 +30,9 @@ const initialCategories: Category[] = [
   { id: "6", name: "Desarrollo Móvil", count: 20 },
 ];
 
-export default function PantallaCategorias({ navigation }: any) {
+type Props = NativeStackScreenProps<RootStackParamList, "categorias">;
+
+export default function PantallaCategorias({ navigation }: Props) {
   // State
   const [query, setQuery] = useState("");
   const [categories, setCategories] = useState<Category[]>(initialCategories);

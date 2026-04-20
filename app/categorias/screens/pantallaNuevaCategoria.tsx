@@ -1,3 +1,5 @@
+import { RootStackParamList } from "@/app/navigation/types";
+import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import React, { useState } from "react";
 import {
   Image,
@@ -9,7 +11,10 @@ import {
   View,
 } from "react-native";
 
-export default function NuevaCategoriaScreen({ navigation }: any) {
+// 🔹 Props tipadas para esta pantalla
+type Props = NativeStackScreenProps<RootStackParamList, "NuevaCategoria">;
+
+export default function NuevaCategoriaScreen({ navigation }: Props) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
 

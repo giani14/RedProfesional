@@ -13,47 +13,35 @@ import {
   View,
 } from "react-native";
 
-type Props = NativeStackScreenProps<RootStackParamList, "NuevaCategoria">;
+type Props = NativeStackScreenProps<RootStackParamList, "EditarCategoria">;
 
-export default function NuevaCategoriaScreen({ navigation }: Props) {
-  const [name, setName] = useState("");
+export default function EditarCategoriaScreen({ navigation, route }: Props) {
+  const [nuevoNombre, setNuevoNombre] = useState("");
   const [description, setDescription] = useState("");
-  const [loading, setLoading] = useState(false);
+  const { id } = route.params;
 
   const handleSave = async () => {
-    if (!name.trim()) return;
+    if (!nuevoNombre.trim()) return;
     navigation.goBack();
 
-    if (!name) return Alert.alert("El nombre es obligatorio");
+    if (!nuevoNombre) return Alert.alert("El nombre es obligatorio");
 
-    setLoading(true);
-    const { error } = await supabase
-      .from("categorias")
-      .insert([
-        {
-          nombre: name,
-          descripcion: description,
-          icono_url: "",
-          activa: true,
-          creado_at: new Date().toISOString(),
-        },
-      ])
-      .select();
+    try {
+      const { data, error } = await supabase
+        .from("categorias")
+        .update({ nombre: nuevoNombre, descripcion: description })
+        .eq("id", id);
 
-    setLoading(false);
-
-    if (error) {
-      Alert.alert("Error", error.message);
-    } else {
-      Alert.alert("Éxito", "Perfil guardado correctamente");
-      setName("");
-      setDescription("");
+      if (error) throw error;
+      console.log("Perfil actualizado:", data);
+    } catch (error) {
+      console.error("Error al editar:", error);
     }
   };
 
   const handleNameInput = (text: string) => {
     if (text.length <= 50) {
-      setName(text);
+      setNuevoNombre(text);
     }
   };
 
@@ -66,7 +54,7 @@ export default function NuevaCategoriaScreen({ navigation }: Props) {
   return (
     <KeyboardAvoidingView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Nueva categoría</Text>
+        <Text style={styles.headerTitle}>Editar categoría</Text>
 
         <View style={{ width: 22 }} />
       </View>
@@ -80,18 +68,18 @@ export default function NuevaCategoriaScreen({ navigation }: Props) {
           />
         </View>
 
-        <Text style={styles.title}>Crear nueva categoría</Text>
+        <Text style={styles.title}>Editar categoría</Text>
         <Text style={styles.subtitle}>
-          Completa la información para registrar una nueva categoría.
+          Modifica la informacion y guarda los cambios
         </Text>
 
         <View style={styles.labelRow}>
           <Text style={styles.label}> Nombre de la categoría (opcional)</Text>
-          <Text style={styles.counter}>{name.length}/50</Text>
+          <Text style={styles.counter}>{nuevoNombre.length}/50</Text>
         </View>
         <TextInput
           placeholder="Ej. Inteligencia Artificial"
-          value={name}
+          value={nuevoNombre}
           onChangeText={handleNameInput}
           style={styles.input}
         />
@@ -111,7 +99,7 @@ export default function NuevaCategoriaScreen({ navigation }: Props) {
         />
 
         <TouchableOpacity style={styles.button} onPress={handleSave}>
-          <Text style={styles.buttonText}>Guardar categoría</Text>
+          <Text style={styles.buttonText}>Guardar Cambios</Text>
         </TouchableOpacity>
 
         <TouchableOpacity onPress={() => navigation.goBack()}>

@@ -1,8 +1,8 @@
 import { RootStackParamList } from "@/app/navigation/types";
+import { supabase } from "@/lib/supabase";
 import { Ionicons } from "@expo/vector-icons";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { useRouter } from "expo-router";
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   FlatList,
   ListRenderItem,
@@ -14,11 +14,19 @@ import {
   View,
 } from "react-native";
 
-// Types
 interface Category {
   id: string;
   name: string;
   count: number;
+}
+
+interface Categorias {
+  id: string;
+  nombre: string;
+  descripcion: string;
+  icono_url: string;
+  activa: boolean;
+  creado_at: string;
 }
 
 const initialCategories: Category[] = [
@@ -33,28 +41,29 @@ const initialCategories: Category[] = [
 type Props = NativeStackScreenProps<RootStackParamList, "categorias">;
 
 export default function PantallaCategorias({ navigation }: Props) {
-  // State
+  const [items, setItems] = useState<Categorias[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
   const [query, setQuery] = useState("");
   const [categories, setCategories] = useState<Category[]>(initialCategories);
   const [page, setPage] = useState(1);
-  const router = useRouter();
   const pageSize = 5;
 
-  // Modal state
   const [modalVisible, setModalVisible] = useState(false);
-  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+  const [editingCategory, setEditingCategory] = useState<Categorias | null>(
+    null,
+  );
   const [inputName, setInputName] = useState("");
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState<Category | null>(
+  const [selectedCategory, setSelectedCategory] = useState<Categorias | null>(
     null,
   );
 
-  // Derived
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return categories;
-    return categories.filter((c) => c.name.toLowerCase().includes(q));
-  }, [query, categories]);
+    if (!q) return items;
+    return items.filter((c) => c.nombre.toLowerCase().includes(q));
+  }, [query, items]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
 
@@ -63,45 +72,63 @@ export default function PantallaCategorias({ navigation }: Props) {
     return filtered.slice(start, start + pageSize);
   }, [filtered, page]);
 
-  // CRUD actions
+  useEffect(() => {
+    fetchData();
+  }, [items]);
+
+  async function fetchData() {
+    try {
+      setIsLoading(true);
+      const { data, error } = await supabase.from("categorias").select("*");
+      console.log("Datos obtenidos:", data);
+      if (error) throw error;
+      setItems(data);
+    } catch (error: any) {
+      console.error("Error obteniendo datos:", error.message);
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
   const openCreate = () => {
     setEditingCategory(null);
     setInputName("");
-    //setModalVisible(true);
+
     navigation.navigate("NuevaCategoria");
   };
 
-  const openEdit = (cat: Category) => {
+  const openEdit = (cat: Categorias) => {
     setEditingCategory(cat);
-    setInputName(cat.name);
-    setModalVisible(true);
+    setInputName(cat.nombre);
+    navigation.navigate("EditarCategoria", { id: cat.id });
   };
 
   const saveCategory = () => {
     if (!inputName.trim()) return;
 
     if (editingCategory) {
-      // Edit
-      setCategories((prev) =>
+      setItems((prev) =>
         prev.map((c) =>
           c.id === editingCategory.id ? { ...c, name: inputName } : c,
         ),
       );
     } else {
-      // Create
-      const newCat: Category = {
+      const newCat: Categorias = {
         id: Date.now().toString(),
-        name: inputName,
-        count: 0,
+        nombre: inputName,
+        descripcion: "",
+        icono_url: "",
+        activa: true,
+        creado_at: new Date().toISOString(),
       };
-      setCategories((prev) => [newCat, ...prev]);
+      setItems((prev) => [newCat, ...prev]);
     }
 
     setModalVisible(false);
     setInputName("");
   };
 
-  const openDeleteModal = (cat: Category) => {
+  const openDeleteModal = (cat: Categorias) => {
     setSelectedCategory(cat);
     setDeleteModalVisible(true);
   };
@@ -109,22 +136,34 @@ export default function PantallaCategorias({ navigation }: Props) {
   const confirmDelete = () => {
     if (!selectedCategory) return;
     navigation.navigate("CategoriaEliminada", {
-      categoryName: selectedCategory.name,
+      categoryName: selectedCategory.nombre,
     });
-    setCategories((prev) => prev.filter((c) => c.id !== selectedCategory.id));
+
+    eliminarCategoria(selectedCategory.id);
+
     setDeleteModalVisible(false);
     setSelectedCategory(null);
   };
 
-  const renderItem: ListRenderItem<Category> = ({ item }) => (
+  const eliminarCategoria = async (id: string) => {
+    try {
+      const { error } = await supabase.from("categorias").delete().eq("id", id);
+
+      if (error) throw error;
+    } catch (error: any) {
+      console.error("Error eliminando categoría:", error.message);
+    }
+  };
+
+  const renderItem: ListRenderItem<Categorias> = ({ item }) => (
     <View style={styles.card}>
       <View style={styles.cardLeft}>
         <View style={styles.iconContainer}>
           <Ionicons name="folder-outline" size={20} color="#2563eb" />
         </View>
         <View>
-          <Text style={styles.title}>{item.name}</Text>
-          <Text style={styles.subtitle}>{item.count} profesionales</Text>
+          <Text style={styles.title}>{item.nombre}</Text>
+          <Text style={styles.subtitle}> 1 profesionales</Text>
         </View>
       </View>
 
@@ -141,13 +180,11 @@ export default function PantallaCategorias({ navigation }: Props) {
 
   return (
     <View style={styles.container}>
-      {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Gestión de categorías</Text>
         <Ionicons name="notifications-outline" size={22} />
       </View>
 
-      {/* Search */}
       <View style={styles.searchContainer}>
         <Ionicons name="search-outline" size={18} color="#9ca3af" />
         <TextInput
@@ -162,7 +199,6 @@ export default function PantallaCategorias({ navigation }: Props) {
         <Ionicons name="options-outline" size={18} color="#9ca3af" />
       </View>
 
-      {/* Info + Button */}
       <View style={styles.infoRow}>
         <Text style={styles.infoText}>Total: {filtered.length} categorías</Text>
         <TouchableOpacity style={styles.button} onPress={openCreate}>
@@ -170,14 +206,12 @@ export default function PantallaCategorias({ navigation }: Props) {
         </TouchableOpacity>
       </View>
 
-      {/* List */}
-      <FlatList<Category>
+      <FlatList<Categorias>
         data={paginated}
         keyExtractor={(item) => item.id}
         renderItem={renderItem}
       />
 
-      {/* Pagination */}
       <View style={styles.pagination}>
         <TouchableOpacity
           style={styles.pageButton}
@@ -195,7 +229,6 @@ export default function PantallaCategorias({ navigation }: Props) {
         </TouchableOpacity>
       </View>
 
-      {/* Modal */}
       <Modal visible={modalVisible} transparent animationType="slide">
         <View style={styles.modalContainer}>
           <View style={styles.modalContent}>
@@ -237,7 +270,7 @@ export default function PantallaCategorias({ navigation }: Props) {
             <Text style={styles.modalETitle}>Eliminar categoría</Text>
 
             <Text style={styles.modalText}>
-              ¿Estás seguro que deseas eliminar "{selectedCategory?.name}"?
+              ¿Estás seguro que deseas eliminar "{selectedCategory?.nombre}"?
             </Text>
 
             <Text style={styles.modalSubText}>

@@ -3,13 +3,13 @@ import { Ionicons } from "@expo/vector-icons";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import React, { useState } from "react";
 import {
-    Image,
-    Modal,
-    SafeAreaView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Image,
+  Modal,
+  SafeAreaView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 type Props = NativeStackScreenProps<RootStackParamList, "UserDetail">;
@@ -17,17 +17,14 @@ type Props = NativeStackScreenProps<RootStackParamList, "UserDetail">;
 export default function UserDetailScreen({ navigation, route }: Props) {
   const { name, email, phone, role, status, createdAt } = route.params;
 
-  // 🔹 estado local (simulación de activación)
   const [currentStatus, setCurrentStatus] = useState(status);
 
-  // 🔹 modal activación
   const [activateModalVisible, setActivateModalVisible] = useState(false);
 
   const handlePrimaryAction = () => {
     if (currentStatus === "Suspendido") {
       setActivateModalVisible(true);
     } else {
-      // aquí iría lógica de suspender
       setCurrentStatus("Suspendido");
     }
   };
@@ -40,7 +37,6 @@ export default function UserDetailScreen({ navigation, route }: Props) {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Ionicons name="arrow-back" size={22} color="#fff" />
@@ -49,9 +45,7 @@ export default function UserDetailScreen({ navigation, route }: Props) {
         <View style={{ width: 22 }} />
       </View>
 
-      {/* Content */}
       <View style={styles.content}>
-        {/* Avatar + nombre */}
         <View style={styles.profileSection}>
           <Image
             source={{ uri: "https://via.placeholder.com/80" }}
@@ -71,7 +65,6 @@ export default function UserDetailScreen({ navigation, route }: Props) {
           </View>
         </View>
 
-        {/* Card info */}
         <View style={styles.card}>
           <View style={styles.row}>
             <Ionicons name="mail-outline" size={18} />
@@ -96,7 +89,6 @@ export default function UserDetailScreen({ navigation, route }: Props) {
           </View>
         </View>
 
-        {/* Warning */}
         {currentStatus === "Suspendido" && (
           <View style={styles.warningBox}>
             <Ionicons name="lock-closed-outline" size={20} color="#f59e0b" />
@@ -106,7 +98,6 @@ export default function UserDetailScreen({ navigation, route }: Props) {
           </View>
         )}
 
-        {/* Actions */}
         <TouchableOpacity
           style={styles.primaryButton}
           onPress={handlePrimaryAction}
@@ -121,7 +112,6 @@ export default function UserDetailScreen({ navigation, route }: Props) {
         </TouchableOpacity>
       </View>
 
-      {/* 🔥 MODAL ACTIVAR CUENTA */}
       <Modal visible={activateModalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalBox}>

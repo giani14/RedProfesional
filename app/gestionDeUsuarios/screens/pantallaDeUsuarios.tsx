@@ -3,13 +3,13 @@ import { Ionicons } from "@expo/vector-icons";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import React, { useMemo, useState } from "react";
 import {
-    FlatList,
-    Image,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  FlatList,
+  Image,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 interface User {
@@ -123,14 +123,12 @@ export default function UsuariosScreen({ navigation }: Props) {
 
   return (
     <View style={styles.container}>
-      {/* Header */}
       <View style={styles.header}>
         <Ionicons name="menu" size={22} color="#fff" />
         <Text style={styles.headerTitle}>Gestión de usuarios</Text>
         <Ionicons name="notifications-outline" size={22} color="#fff" />
       </View>
 
-      {/* Search */}
       <View style={styles.searchContainer}>
         <Ionicons name="search" size={18} color="#9ca3af" />
         <TextInput
@@ -145,7 +143,6 @@ export default function UsuariosScreen({ navigation }: Props) {
         <Ionicons name="options" size={18} color="#9ca3af" />
       </View>
 
-      {/* Info */}
       <View style={styles.infoRow}>
         <Text style={styles.infoText}>Total: {filtered.length} usuarios</Text>
         <TouchableOpacity style={styles.button}>
@@ -153,14 +150,12 @@ export default function UsuariosScreen({ navigation }: Props) {
         </TouchableOpacity>
       </View>
 
-      {/* List */}
       <FlatList
         data={paginated}
         keyExtractor={(item) => item.id}
         renderItem={renderItem}
       />
 
-      {/* Pagination */}
       <View style={styles.pagination}>
         <TouchableOpacity onPress={() => setPage((p) => Math.max(1, p - 1))}>
           <Text>{"<"}</Text>

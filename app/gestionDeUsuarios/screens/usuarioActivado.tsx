@@ -2,15 +2,14 @@ import { Ionicons } from "@expo/vector-icons";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import React from "react";
 import {
-    Image,
-    SafeAreaView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Image,
+  SafeAreaView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
-// 🔹 Tipado navegación
 type RootStackParamList = {
   Usuarios: undefined;
   UsuarioActivado: { name: string };
@@ -23,7 +22,6 @@ export default function UsuarioActivadoScreen({ navigation, route }: Props) {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Ionicons name="arrow-back" size={22} color="#fff" />
@@ -32,9 +30,7 @@ export default function UsuarioActivadoScreen({ navigation, route }: Props) {
         <View style={{ width: 22 }} />
       </View>
 
-      {/* Content */}
       <View style={styles.content}>
-        {/* Icon */}
         <View style={styles.iconContainer}>
           <Ionicons name="checkmark" size={40} color="#16a34a" />
         </View>
@@ -44,7 +40,6 @@ export default function UsuarioActivadoScreen({ navigation, route }: Props) {
           La cuenta ha sido activada correctamente.
         </Text>
 
-        {/* Card usuario */}
         <View style={styles.userCard}>
           <Image
             source={{ uri: "https://via.placeholder.com/50" }}
@@ -56,7 +51,6 @@ export default function UsuarioActivadoScreen({ navigation, route }: Props) {
           </View>
         </View>
 
-        {/* Button */}
         <TouchableOpacity
           style={styles.button}
           onPress={() => navigation.navigate("Usuarios")}
@@ -65,7 +59,6 @@ export default function UsuarioActivadoScreen({ navigation, route }: Props) {
         </TouchableOpacity>
       </View>
 
-      {/* Decoraciones */}
       <View style={styles.decorLeft} />
       <View style={styles.decorRight} />
     </SafeAreaView>

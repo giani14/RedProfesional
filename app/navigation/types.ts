@@ -1,6 +1,7 @@
 export type RootStackParamList = {
   categorias: { categoryName: string };
   NuevaCategoria: undefined;
+  EditarCategoria: { id: string };
   CategoriaEliminada: { categoryName: string };
   ListaDeUsuarios: { categoryName: string };
   UserDetail: {

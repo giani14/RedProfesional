@@ -1,9 +1,9 @@
 import { StyleSheet, Text, View } from 'react-native';
 
-export default function TabOneScreen() {
+export default function AdminHome() {
   return (
     <View style={styles.container}>
-      <Text style={styles.text}>Pantalla principal temporal</Text>
+      <Text style={styles.text}>Bienvenido Admin</Text>
     </View>
   );
 }
@@ -13,10 +13,9 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#fff',
   },
   text: {
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: 24,
+    fontWeight: 'bold',
   },
 });

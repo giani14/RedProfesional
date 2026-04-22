@@ -190,9 +190,9 @@ export default function Login() {
                 <Text style={styles.errorText}>{generalError}</Text>
               )}
 
-              <TouchableOpacity>
+             <TouchableOpacity onPress={() => router.push('/forgot-password')}>
                 <Text style={styles.forgot}>¿Olvidaste tu contraseña?</Text>
-              </TouchableOpacity>
+                </TouchableOpacity>
 
               <TouchableOpacity
                 style={[styles.button, loading && styles.buttonDisabled]}
@@ -222,7 +222,7 @@ export default function Login() {
                   ¿No tienes cuenta?{' '}
                   <Text style={styles.registerLink}>Regístrate</Text>
                 </Text>
-              </TouchableOpacity>
+              </TouchableOpacity >
             </View>
           </View>
         </View>

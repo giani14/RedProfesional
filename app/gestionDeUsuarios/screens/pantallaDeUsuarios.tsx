@@ -1,7 +1,8 @@
 import { RootStackParamList } from "@/app/navigation/types";
+import { supabase } from "@/lib/supabase";
 import { Ionicons } from "@expo/vector-icons";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   FlatList,
   Image,
@@ -18,6 +19,15 @@ interface User {
   email: string;
   role: "Cliente" | "Profesional";
   status: "Activo" | "Suspendido";
+}
+
+interface Usuario {
+  id: string;
+  email: string;
+  nombre_completo: string;
+  rol: "Cliente" | "Profesional";
+  estado: "activo" | "suspendido";
+  creado_at: string;
 }
 
 const initialUsers: User[] = [
@@ -59,13 +69,17 @@ export default function UsuariosScreen({ navigation }: Props) {
   const [page, setPage] = useState(1);
   const pageSize = 4;
 
+  const [usuarios, setUsuarios] = useState<Usuario[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
   const filtered = useMemo(() => {
     const q = query.toLowerCase();
-    return users.filter(
+    return usuarios.filter(
       (u) =>
-        u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q),
+        u.nombre_completo.toLowerCase().includes(q) ||
+        u.email.toLowerCase().includes(q),
     );
-  }, [query, users]);
+  }, [query, usuarios]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
 
@@ -74,17 +88,36 @@ export default function UsuariosScreen({ navigation }: Props) {
     return filtered.slice(start, start + pageSize);
   }, [filtered, page]);
 
-  const renderItem = ({ item }: { item: User }) => (
+  useEffect(() => {
+    fetchData();
+  }, [usuarios]);
+
+  async function fetchData() {
+    try {
+      setIsLoading(true);
+      const { data, error } = await supabase.from("perfiles").select("*");
+
+      if (error) throw error;
+      setUsuarios(data);
+    } catch (error: any) {
+      console.error("Error obteniendo datos:", error.message);
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  const renderItem = ({ item }: { item: Usuario }) => (
     <View style={styles.card}>
       <TouchableOpacity
         onPress={() =>
           navigation.navigate("UserDetail", {
-            name: item.name,
+            id: item.id,
+            name: item.nombre_completo,
             email: item.email,
             phone: "+591 700 00000",
-            role: item.role,
-            status: item.status,
-            createdAt: "15 de marzo de 2024",
+            role: item.rol,
+            status: item.estado,
+            createdAt: item.creado_at,
           })
         }
       >
@@ -94,24 +127,24 @@ export default function UsuariosScreen({ navigation }: Props) {
             style={styles.avatar}
           />
           <View>
-            <Text style={styles.name}>{item.name}</Text>
+            <Text style={styles.name}>{item.nombre_completo}</Text>
             <Text style={styles.email}>{item.email}</Text>
             <View style={styles.badges}>
               <View
                 style={[
                   styles.badge,
-                  item.role === "Cliente" ? styles.blue : styles.gray,
+                  item.rol === "Cliente" ? styles.blue : styles.gray,
                 ]}
               >
-                <Text style={styles.badgeText}>{item.role}</Text>
+                <Text style={styles.badgeText}>{item.rol}</Text>
               </View>
               <View
                 style={[
                   styles.badge,
-                  item.status === "Activo" ? styles.green : styles.red,
+                  item.estado === "activo" ? styles.green : styles.red,
                 ]}
               >
-                <Text style={styles.badgeText}>{item.status}</Text>
+                <Text style={styles.badgeText}>{item.estado}</Text>
               </View>
             </View>
           </View>

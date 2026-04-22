@@ -5,11 +5,12 @@ export type RootStackParamList = {
   CategoriaEliminada: { categoryName: string };
   ListaDeUsuarios: { categoryName: string };
   UserDetail: {
+    id: string;
     name: string;
     email: string;
     phone: string;
     role: string;
-    status: "Activo" | "Suspendido";
+    status: "activo" | "suspendido";
     createdAt: string;
   };
   UsuarioActivado: { name: string };

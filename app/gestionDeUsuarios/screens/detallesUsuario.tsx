@@ -1,4 +1,5 @@
 import { RootStackParamList } from "@/app/navigation/types";
+import { supabase } from "@/lib/supabase";
 import { Ionicons } from "@expo/vector-icons";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import React, { useState } from "react";
@@ -15,17 +16,40 @@ import {
 type Props = NativeStackScreenProps<RootStackParamList, "UserDetail">;
 
 export default function UserDetailScreen({ navigation, route }: Props) {
-  const { name, email, phone, role, status, createdAt } = route.params;
+  const { id, name, email, phone, role, status, createdAt } = route.params;
 
   const [currentStatus, setCurrentStatus] = useState(status);
 
   const [activateModalVisible, setActivateModalVisible] = useState(false);
 
+  const fechaDB: string = createdAt;
+  const fecha = new Date(fechaDB);
+
+  const fechaActual = new Intl.DateTimeFormat("es-ES", {
+    dateStyle: "long",
+    timeStyle: "short",
+  }).format(fecha);
+
   const handlePrimaryAction = () => {
-    if (currentStatus === "Suspendido") {
+    if (currentStatus === "suspendido") {
       setActivateModalVisible(true);
     } else {
-      setCurrentStatus("Suspendido");
+      setCurrentStatus("suspendido");
+      cambiarEstado("suspendido");
+    }
+  };
+
+  const cambiarEstado = async (nuevoEstado: string) => {
+    try {
+      const { data, error } = await supabase
+        .from("perfiles")
+        .update({ estado: nuevoEstado })
+        .eq("id", id);
+
+      if (error) throw error;
+      console.log("estado actualizado:", data);
+    } catch (error) {
+      console.error("Error al editar:", error);
     }
   };
 
@@ -33,6 +57,7 @@ export default function UserDetailScreen({ navigation, route }: Props) {
     navigation.replace("UsuarioActivado", {
       name: name,
     });
+    cambiarEstado("activo");
   };
 
   return (
@@ -48,7 +73,7 @@ export default function UserDetailScreen({ navigation, route }: Props) {
       <View style={styles.content}>
         <View style={styles.profileSection}>
           <Image
-            source={{ uri: "https://via.placeholder.com/80" }}
+            source={require("@/assets/images/avatar.png")}
             style={styles.avatar}
           />
 
@@ -57,7 +82,7 @@ export default function UserDetailScreen({ navigation, route }: Props) {
             <View
               style={[
                 styles.statusBadge,
-                currentStatus === "Activo" ? styles.green : styles.red,
+                currentStatus === "activo" ? styles.green : styles.red,
               ]}
             >
               <Text style={styles.statusText}>{currentStatus}</Text>
@@ -68,12 +93,18 @@ export default function UserDetailScreen({ navigation, route }: Props) {
         <View style={styles.card}>
           <View style={styles.row}>
             <Ionicons name="mail-outline" size={18} />
-            <Text style={styles.text}>{email}</Text>
+            <View style={{ gap: 4 }}>
+              <Text style={{ opacity: 0.5 }}>Correo Electronico </Text>
+              <Text style={styles.text}>{email}</Text>
+            </View>
           </View>
 
           <View style={styles.row}>
             <Ionicons name="call-outline" size={18} />
-            <Text style={styles.text}>{phone}</Text>
+            <View style={{ gap: 4 }}>
+              <Text style={{ opacity: 0.5 }}>Número de Teléfono </Text>
+              <Text style={styles.text}>{phone}</Text>
+            </View>
           </View>
 
           <View style={styles.row}>
@@ -85,11 +116,14 @@ export default function UserDetailScreen({ navigation, route }: Props) {
 
           <View style={styles.row}>
             <Ionicons name="calendar-outline" size={18} />
-            <Text style={styles.text}>{createdAt}</Text>
+            <View style={{ gap: 4 }}>
+              <Text style={{ opacity: 0.5 }}>Fecha de registro </Text>
+              <Text style={styles.text}>{fechaActual}</Text>
+            </View>
           </View>
         </View>
 
-        {currentStatus === "Suspendido" && (
+        {currentStatus === "suspendido" && (
           <View style={styles.warningBox}>
             <Ionicons name="lock-closed-outline" size={20} color="#f59e0b" />
             <Text style={styles.warningText}>
@@ -103,7 +137,7 @@ export default function UserDetailScreen({ navigation, route }: Props) {
           onPress={handlePrimaryAction}
         >
           <Text style={styles.primaryText}>
-            {currentStatus === "Activo" ? "Suspender cuenta" : "Activar cuenta"}
+            {currentStatus === "activo" ? "Suspender cuenta" : "Activar cuenta"}
           </Text>
         </TouchableOpacity>
 

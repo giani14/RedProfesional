@@ -53,7 +53,7 @@ export default function UsuarioActivadoScreen({ navigation, route }: Props) {
 
         <TouchableOpacity
           style={styles.button}
-          onPress={() => navigation.navigate("Usuarios")}
+          onPress={() => navigation.goBack()}
         >
           <Text style={styles.buttonText}>Volver a usuarios</Text>
         </TouchableOpacity>

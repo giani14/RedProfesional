@@ -14,12 +14,6 @@ import {
   View,
 } from "react-native";
 
-interface Category {
-  id: string;
-  name: string;
-  count: number;
-}
-
 interface Categorias {
   id: string;
   nombre: string;
@@ -29,15 +23,6 @@ interface Categorias {
   creado_at: string;
 }
 
-const initialCategories: Category[] = [
-  { id: "1", name: "Desarrollo Web", count: 25 },
-  { id: "2", name: "Diseño Gráfico", count: 18 },
-  { id: "3", name: "Marketing Digital", count: 32 },
-  { id: "4", name: "Redes Sociales", count: 15 },
-  { id: "5", name: "Fotografía", count: 12 },
-  { id: "6", name: "Desarrollo Móvil", count: 20 },
-];
-
 type Props = NativeStackScreenProps<RootStackParamList, "categorias">;
 
 export default function PantallaCategorias({ navigation }: Props) {
@@ -45,7 +30,6 @@ export default function PantallaCategorias({ navigation }: Props) {
   const [isLoading, setIsLoading] = useState(false);
 
   const [query, setQuery] = useState("");
-  const [categories, setCategories] = useState<Category[]>(initialCategories);
   const [page, setPage] = useState(1);
   const pageSize = 5;
 
@@ -80,7 +64,7 @@ export default function PantallaCategorias({ navigation }: Props) {
     try {
       setIsLoading(true);
       const { data, error } = await supabase.from("categorias").select("*");
-      console.log("Datos obtenidos:", data);
+
       if (error) throw error;
       setItems(data);
     } catch (error: any) {

@@ -27,6 +27,7 @@ export default function AppNavigator() {
         name="CategoriaEliminada"
         component={CategoriaEliminadaScreen}
       />
+
       <Stack.Screen name="ListaDeUsuarios" component={UsuariosScreen} />
 
       <Stack.Screen name="UserDetail" component={DetallesScreen} />

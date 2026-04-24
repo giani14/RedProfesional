@@ -1,8 +1,18 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, useRouter } from "expo-router";
 import React from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import {
+  Dimensions,
+  Image,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+
+const logoRedProfesional = require("../assets/images/RedProfesional-removebg.png");
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 // Definición de colores basada en tu proyecto
 const COLORS = {
@@ -19,6 +29,65 @@ export default function AsigClienteScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
+
+      {/* === FIGURAS DECORATIVAS DE FONDO === */}
+      {/* Círculo superior izquierdo (Beige) */}
+      <View
+        style={{
+          position: "absolute",
+          top: -40,
+          left: -40,
+          width: 150,
+          height: 150,
+          borderRadius: 75,
+          backgroundColor: "#F3E5AB",
+          opacity: 0.5,
+          zIndex: -1, // Se asegura de estar detrás de todo
+        }}
+      />
+
+      {/* Círculo inferior izquierdo (Azul) */}
+      <View
+        style={{
+          position: "absolute",
+          bottom: -30,
+          left: -40,
+          width: 120,
+          height: 120,
+          borderRadius: 60,
+          backgroundColor: "#5D89BA",
+          opacity: 0.4,
+          zIndex: -1,
+        }}
+      />
+
+      {/* Círculo inferior derecho (Dorado/Amarillo) */}
+      <View
+        style={{
+          position: "absolute",
+          bottom: -40,
+          right: -30,
+          width: 140,
+          height: 140,
+          borderRadius: 70,
+          backgroundColor: COLORS.accentGold,
+          opacity: 0.3,
+          zIndex: -1,
+        }}
+      />
+      {/* ===================================== */}
+
+      {/* Logo */}
+      <View style={{ alignItems: "center", marginBottom: 1, marginTop: 80 }}>
+        <Image
+          source={logoRedProfesional}
+          style={{
+            width: SCREEN_WIDTH * 0.6,
+            height: 120,
+          }}
+          resizeMode="contain"
+        />
+      </View>
 
       <View style={styles.content}>
         {/* Círculo de éxito con check */}
@@ -41,7 +110,7 @@ export default function AsigClienteScreen() {
         {/* Botón Final */}
         <TouchableOpacity
           style={styles.button}
-          onPress={() => router.replace("/Home")} // Redirige al inicio real
+          onPress={() => router.replace("/Home")}
         >
           <Text style={styles.buttonText}>Ir al inicio</Text>
         </TouchableOpacity>

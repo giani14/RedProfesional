@@ -3,6 +3,7 @@ import { Stack, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   Dimensions,
+  Image,
   ScrollView,
   Text,
   TextInput,
@@ -11,6 +12,8 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { supabase } from "../lib/supabase";
+
+const logoRedProfesional = require("../assets/images/RedProfesional-removebg.png");
 
 const COLORS = {
   primaryBlue: "#123F78",
@@ -204,27 +207,17 @@ export default function ProfeInfoScreen() {
             <Stepper />
 
             {/* Logo */}
-            <View style={{ alignItems: "center", marginBottom: 20 }}>
-              <View style={{ flexDirection: "row", alignItems: "center" }}>
-                <Text
-                  style={{
-                    fontSize: 32,
-                    fontWeight: "800",
-                    color: COLORS.accentGold,
-                  }}
-                >
-                  Red
-                </Text>
-                <Text
-                  style={{
-                    fontSize: 32,
-                    fontWeight: "800",
-                    color: COLORS.textDarkBlue,
-                  }}
-                >
-                  Profesional
-                </Text>
-              </View>
+            <View
+              style={{ alignItems: "center", marginBottom: 10, marginTop: -10 }}
+            >
+              <Image
+                source={logoRedProfesional}
+                style={{
+                  width: SCREEN_WIDTH * 0.5, // Ajusta el ancho al 70% de la pantalla
+                  height: 120, // Altura fija inicial
+                }}
+                resizeMode="contain"
+              />
             </View>
 
             {/* Títulos */}

@@ -2,6 +2,7 @@ import { Stack } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   Dimensions,
+  Image,
   Platform,
   ScrollView,
   Text,
@@ -15,6 +16,8 @@ import { useRouter } from "expo-router";
 //import React, { useEffect } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { supabase } from "../lib/supabase";
+
+const logoRedProfesional = require("../assets/images/RedProfesional-removebg.png");
 
 // Colores exactos extraídos de la primera imagen
 const COLORS = {
@@ -241,60 +244,40 @@ export default function SelectRoleScreen() {
             }}
           >
             {/* LOGO DE LA MARCA (Recreado con texto y una View para la línea) */}
-            <View style={{ alignItems: "center", marginBottom: 40 }}>
-              <View style={{ flexDirection: "row", alignItems: "center" }}>
-                <Text
-                  style={{
-                    fontSize: 42,
-                    fontWeight: "800",
-                    color: COLORS.accentGold,
-                  }}
-                >
-                  Red
-                </Text>
-                <Text
-                  style={{
-                    fontSize: 42,
-                    fontWeight: "800",
-                    color: COLORS.textDarkBlue,
-                  }}
-                >
-                  Profesional
-                </Text>
-              </View>
-              <View
+            <View
+              style={{ alignItems: "center", marginBottom: 30, marginTop: -20 }}
+            >
+              <Image
+                source={logoRedProfesional}
                 style={{
-                  marginTop: 5, // Superpone ligeramente la línea
-                  width: SCREEN_WIDTH * 0.5, // 40% del ancho de pantalla
-                  height: 5,
-                  borderRadius: 3,
-                  backgroundColor: COLORS.accentGold,
+                  width: SCREEN_WIDTH * 0.9, // Ajusta el ancho al 70% de la pantalla
+                  height: 180, // Altura fija inicial
                 }}
+                resizeMode="contain"
               />
             </View>
 
             {/* TÍTULO Y SUBTÍTULO DE SECCIÓN */}
-            <Text
-              style={{
-                fontSize: 32,
-                fontWeight: "900", // Súper negrita
-                color: COLORS.textDarkBlue,
-                marginBottom: 4,
-              }}
-            >
-              {userName ? `Hola, ${userName}` : "Elige tu rol"}
-            </Text>
-            <Text
-              style={{
-                fontSize: 18,
-                color: COLORS.textBodyGrey,
-                marginBottom: 40,
-              }}
-            >
-              {userName
-                ? "Selecciona el rol que mejor te describa."
-                : "Inicia sesión para continuar."}
-            </Text>
+            <View style={{ marginBottom: 30, marginTop: -10 }}>
+              <Text
+                style={{
+                  fontSize: 28, // Bajamos un poco el tamaño para que armonice con el logo
+                  fontWeight: "800",
+                  color: COLORS.textDarkBlue,
+                  marginBottom: 6,
+                }}
+              >
+                {userName ? `Hola, ${userName}` : "Elige tu rol"}
+              </Text>
+              <Text
+                style={{
+                  fontSize: 16,
+                  color: COLORS.textBodyGrey,
+                }}
+              >
+                Selecciona el rol que mejor te describa.
+              </Text>
+            </View>
 
             {/* TARJETA 1: CLIENTE (Tipado seguro de iconos) */}
             <RoleCard

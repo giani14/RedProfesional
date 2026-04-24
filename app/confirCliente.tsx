@@ -1,9 +1,19 @@
 import { FontAwesome, Ionicons } from "@expo/vector-icons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import React from "react";
-import { ScrollView, Text, TouchableOpacity, View } from "react-native";
+import {
+  Dimensions,
+  Image,
+  ScrollView,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { supabase } from "../lib/supabase";
+
+const logoRedProfesional = require("../assets/images/RedProfesional-removebg.png");
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 const COLORS = {
   primaryBlue: "#123F78",
@@ -141,6 +151,7 @@ export default function ConfirClienteScreen() {
                   marginHorizontal: 10,
                 }}
               />
+
               <View style={{ alignItems: "center" }}>
                 <View
                   style={{
@@ -167,17 +178,22 @@ export default function ConfirClienteScreen() {
               </View>
             </View>
 
-            {/* Logo y Título */}
-            <View style={{ alignItems: "center", marginBottom: 20 }}>
-              <Text
+            {/* Logo */}
+            <View
+              style={{ alignItems: "center", marginBottom: 1, marginTop: -1 }}
+            >
+              <Image
+                source={logoRedProfesional}
                 style={{
-                  fontSize: 28,
-                  fontWeight: "800",
-                  color: COLORS.textDarkBlue,
+                  width: SCREEN_WIDTH * 0.6, // Ajusta el ancho al 70% de la pantalla
+                  height: 120, // Altura fija inicial
                 }}
-              >
-                RedProfesional
-              </Text>
+                resizeMode="contain"
+              />
+            </View>
+
+            {/* Título */}
+            <View style={{ alignItems: "center", marginBottom: 20 }}>
               <Text
                 style={{
                   fontSize: 24,

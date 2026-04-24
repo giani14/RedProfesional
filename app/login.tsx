@@ -76,16 +76,14 @@ export default function LoginScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
-
-      {/* 1. Header Superior Azul Marino */}
+      
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={24} color={COLORS.white} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Iniciar sesión</Text>
-        <View style={{ width: 4 }} /> {/* Espaciador para centrar */}
+        <View style={{ width: 4 }} />
       </View>
-
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={{ flex: 1 }}

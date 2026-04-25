@@ -1,4 +1,4 @@
-import { StyleSheet } from 'react-native';
+/*import { StyleSheet } from 'react-native';
 
 import EditScreenInfo from '@/components/EditScreenInfo';
 import { Text, View } from '@/components/Themed';
@@ -28,4 +28,10 @@ const styles = StyleSheet.create({
     height: 1,
     width: '80%',
   },
-});
+});*/
+import { Redirect } from 'expo-router';
+
+export default function Index() {
+  // Esto redirige automáticamente a tu archivo registrar.tsx
+  return <Redirect href="/registrar" />;
+}

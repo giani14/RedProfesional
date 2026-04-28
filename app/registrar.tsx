@@ -46,47 +46,60 @@ export default function RegisterScreen() {
   const isFormInvalid = !fullName || !isEmailValid || !isPasswordValid || !passwordsMatch || !acceptedTerms;
 
   const handleRegister = async () => {
-    if (isFormInvalid) return;
+  if (isFormInvalid) return;
 
-    setLoading(true);
-    try {
-      /* CORRECCIÓN CLAVE: 
-         Solo llamamos a signUp. Tu TRIGGER en Supabase detectará 
-         el nuevo usuario y creará la fila en 'perfiles' automáticamente.
-      */
-      const { data, error: authError } = await supabase.auth.signUp({ 
-        email: email.trim().toLowerCase(), 
-        password,
-        options: {
-          // Pasamos el nombre y el rol como 'metadata' para que el Trigger los lea
-          data: {
-            full_name: fullName.trim(),
-            role: role
-          }
-        }
-      });
+  setLoading(true);
 
-      if (authError) throw authError;
+  try {
+    // 1. Registro en Auth
+    const { data, error: authError } = await supabase.auth.signUp({
+      email: email.trim().toLowerCase(),
+      password
+    });
 
-      if (data.user) {
-        
-        setIsSuccess(true); 
-      }
-    } catch (err: any) {
-      console.log("Error detectado:", err.message);
-      let errorMessage = "No se pudo completar el registro.";
-      
-      if (err.message.includes("already registered")) {
-        errorMessage = "Este correo ya está registrado. Intenta iniciar sesión.";
-      } else {
-        errorMessage = err.message;
-      }
-
-      Alert.alert("Error de registro", errorMessage);
-    } finally {
-      setLoading(false);
+    if (authError) {
+      console.log("AUTH ERROR:", authError);
+      throw authError;
     }
-  };
+
+    console.log("USER DATA:", data);
+
+    if (data.user) {
+      // 2. Insertar en perfiles
+      const { data: perfilData, error: dbError } = await supabase
+        .from('perfiles')
+        .insert([
+          {
+            id: data.user.id,
+            nombre_completo: fullName.trim(),
+            email: email.trim().toLowerCase(),
+            rol: role
+          }
+        ])
+        .select();
+
+      if (dbError) {
+        console.log("DB ERROR COMPLETO:", dbError);
+        console.log("DB ERROR JSON:", JSON.stringify(dbError, null, 2));
+        throw dbError;
+      }
+
+      console.log("PERFIL INSERTADO:", perfilData);
+
+      setIsSuccess(true);
+    } else {
+      console.log("No se recibió user");
+      Alert.alert("Error", "No se pudo crear el usuario");
+    }
+
+  } catch (err: any) {
+    console.log("ERROR GENERAL:", err);
+    console.log("ERROR JSON:", JSON.stringify(err, null, 2));
+    Alert.alert("Error de registro", err.message || "Error desconocido");
+  } finally {
+    setLoading(false);
+  }
+};
 
   if (isSuccess) {
     return (
@@ -101,8 +114,8 @@ export default function RegisterScreen() {
             Tu cuenta ha sido creada correctamente.{"\n"}
             Ya puedes acceder a RedProfesional.
           </Text>
-          <TouchableOpacity style={styles.btnMain} onPress={() => router.push('/(tabs)')}>
-            <Text style={styles.btnText}>Ir al Inicio</Text>
+          <TouchableOpacity style={styles.btnMain} onPress={() => router.push('/(tabs)/two')}>
+            <Text style={styles.btnText}>Ir a mi Perfil</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -122,7 +135,6 @@ export default function RegisterScreen() {
           <Image source={logoImg} style={styles.logoImg} resizeMode="contain" />
         </View>
 
-        
         <View style={styles.form}>
           <Text style={styles.welcomeTitle}>Únete a RedProfesional</Text>
 
@@ -135,25 +147,18 @@ export default function RegisterScreen() {
           <Text style={styles.label}>Correo electrónico</Text>
           <View style={[styles.inputWrap, email !== '' && !isEmailValid && styles.inputError]}>
             <MaterialCommunityIcons name="email-outline" size={18} color="#999" />
-            <TextInput 
-              style={styles.input} 
-              placeholder="ejemplo@correo.com" 
-              autoCapitalize="none" 
-              keyboardType="email-address"
-              onChangeText={setEmail}
-              value={email}
-            />
+            <TextInput style={styles.input} placeholder="ejemplo@correo.com" autoCapitalize="none" keyboardType="email-address" onChangeText={setEmail} value={email} />
           </View>
 
           <Text style={styles.label}>Contraseña (Mín. 8 caracteres)</Text>
           <View style={[styles.inputWrap, password !== '' && !isPasswordValid && styles.inputError]}>
             <FontAwesome5 name="lock" size={16} color="#999" />
             <TextInput 
-                style={styles.input} 
-                placeholder="********" 
-                secureTextEntry={securePassword} 
-                onChangeText={setPassword}
-                value={password}
+              style={styles.input} 
+              placeholder="********" 
+              secureTextEntry={securePassword} 
+              onChangeText={setPassword}
+              value={password}
             />
             <TouchableOpacity onPress={() => setSecurePassword(!securePassword)}>
               <Entypo name={securePassword ? "eye-with-line" : "eye"} size={18} color="#999" />
@@ -164,15 +169,15 @@ export default function RegisterScreen() {
           <View style={[styles.inputWrap, confirmPassword !== '' && !passwordsMatch && styles.inputError]}>
             <FontAwesome5 name="lock" size={16} color="#999" />
             <TextInput 
-                style={styles.input} 
-                placeholder="********" 
-                secureTextEntry={securePassword} 
-                onChangeText={setConfirmPassword}
-                value={confirmPassword}
+              style={styles.input} 
+              placeholder="********" 
+              secureTextEntry={securePassword} 
+              onChangeText={setConfirmPassword}
+              value={confirmPassword}
             />
           </View>
 
-          <Text style={styles.label}>Tipo de cuenta</Text>
+          <Text style={styles.label}>Selecciona tu Rol</Text>
           <View style={styles.switchContainer}>
             <View style={[styles.slidingBg, role === 'Profesional' ? { left: '50%' } : { left: 0 }]} />
             <TouchableOpacity style={styles.switchOption} onPress={() => setRole('Cliente')}>
@@ -199,18 +204,12 @@ export default function RegisterScreen() {
           {loading ? <ActivityIndicator color="white" /> : <Text style={styles.btnText}>Registrarse</Text>}
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.loginLink} onPress={() => router.push('/(tabs)')}>
+        <TouchableOpacity style={styles.loginLink} onPress={() => router.push('/')}>
           <Text style={styles.loginText}>¿Ya tienes cuenta? <Text style={styles.loginBold}>Iniciar sesión</Text></Text>
         </TouchableOpacity>
-
-        <View style={{ height: 60 }} />
+        
+        <View style={{ height: 40 }} />
       </ScrollView>
-
-      <View style={styles.footerDecorations} pointerEvents="none">
-        <View style={styles.decorYellow} />
-        <View style={styles.decorLightBlue} />
-      </View>
-
     </KeyboardAvoidingView>
   );
 }
@@ -225,7 +224,7 @@ const styles = StyleSheet.create({
   welcomeTitle: { fontSize: 22, fontWeight: 'bold', textAlign: 'center', color: '#003366', marginBottom: 15 },
   form: { width: '100%', maxWidth: 500, alignSelf: 'center' },
   label: { fontWeight: 'bold', marginTop: 12, marginBottom: 5, color: '#444' },
-  inputWrap: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#eee', borderRadius: 12, paddingHorizontal: 15, backgroundColor: '#f9f9f9' },
+  inputWrap: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#eee', borderRadius: 12, paddingHorizontal: 15, backgroundColor: '#f9f9f9', marginBottom: 5 },
   inputError: { borderColor: '#FF5252' },
   input: { flex: 1, paddingVertical: 10, marginLeft: 10, fontSize: 16 },
   switchContainer: { flexDirection: 'row', backgroundColor: '#f0f0f0', borderRadius: 30, height: 50, marginTop: 10, position: 'relative', overflow: 'hidden' },
@@ -243,9 +242,6 @@ const styles = StyleSheet.create({
   loginLink: { marginTop: 25, marginBottom: 20, alignItems: 'center' },
   loginText: { color: '#666', fontSize: 15 },
   loginBold: { color: '#003366', fontWeight: 'bold' },
-  footerDecorations: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 120, overflow: 'hidden', zIndex: -1 },
-  decorYellow: { position: 'absolute', bottom: -50, right: -40, width: 200, height: 200, borderRadius: 100, backgroundColor: '#FFB800', opacity: 0.2 },
-  decorLightBlue: { position: 'absolute', bottom: -70, left: -50, width: 250, height: 250, borderRadius: 125, backgroundColor: '#00AEEF', opacity: 0.15 },
   successContainer: { flex: 1, backgroundColor: 'white', justifyContent: 'center' },
   successContent: { alignItems: 'center', padding: 30 },
   checkCircle: { width: 120, height: 120, borderRadius: 60, backgroundColor: '#E8F5E9', justifyContent: 'center', alignItems: 'center', marginBottom: 20 },

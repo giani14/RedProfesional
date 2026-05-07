@@ -29,9 +29,10 @@ const styles = StyleSheet.create({
     width: '80%',
   },
 });*/
-import { Redirect } from 'expo-router';
+
+import { Redirect } from "expo-router";
 
 export default function Index() {
   // Esto redirige automáticamente a tu archivo registrar.tsx
-  return <Redirect href="/registrar" />;
+  return <Redirect href="/HU-02/login" />;
 }

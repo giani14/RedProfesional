@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
-import { useNavigation, useRouter } from "expo-router";
+import { Stack, useNavigation, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -179,6 +179,7 @@ export default function EditarDatosPersonales() {
       style={styles.contenedor}
       contentContainerStyle={{ paddingBottom: 40 }}
     >
+      <Stack.Screen options={{ headerShown: false }} />
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity

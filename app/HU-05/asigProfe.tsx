@@ -108,7 +108,7 @@ export default function AsigProfeScreen() {
 
         <TouchableOpacity
           style={styles.button}
-          onPress={() => router.replace("/HOME/clienteHome")}
+          onPress={() => router.replace("/(profesional)")}
         >
           <Text style={styles.buttonText}>Ir al inicio</Text>
         </TouchableOpacity>

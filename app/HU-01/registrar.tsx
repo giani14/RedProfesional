@@ -28,7 +28,13 @@ const { width } = Dimensions.get("window");
 
 export default function RegisterScreen() {
   const router = useRouter();
-
+  // --- NUEVA FUNCIÓN DE FILTRADO PARA EL NOMBRE ---
+  const handleNameChange = (text: string) => {
+    // Solo permite letras (incluye tildes y ñ) y espacios
+    // El símbolo ^ dentro de [] significa "todo lo que NO sea esto"
+    const filteredText = text.replace(/[^a-zA-ZñÑáéíóúÁÉÍÓÚ ]/g, "");
+    setFullName(filteredText);
+  };
   // Estados de los campos
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -157,8 +163,9 @@ export default function RegisterScreen() {
             <TextInput
               style={styles.input}
               placeholder="Ej: Marvin Anghelo"
-              onChangeText={setFullName}
+              onChangeText={handleNameChange}
               value={fullName}
+              autoCapitalize="words"
             />
           </View>
 

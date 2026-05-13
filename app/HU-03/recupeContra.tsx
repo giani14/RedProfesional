@@ -50,7 +50,7 @@ export default function RecuperarPassword() {
 
       if (!perfil || !perfil.nombre_completo) {
         router.push({
-          pathname: "/HU-02/correoInexiste",
+          pathname: "/HU-03/correoInexiste",
           params: { emailErroneo: email.trim() },
         });
         return;
@@ -61,7 +61,7 @@ export default function RecuperarPassword() {
       const { error } = await supabase.auth.resetPasswordForEmail(
         email.trim(),
         {
-          redirectTo: "redprofesional://HU-02/nuevaContra",
+          redirectTo: "redprofesional://HU-03/nuevaContra",
           data: {
             full_name: perfil.nombre_completo, // Este es el dato que viajará a la plantilla
           },

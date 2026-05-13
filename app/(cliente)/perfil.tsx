@@ -36,10 +36,8 @@ interface MenuOptionProps {
   label: string;
   onPress?: () => void;
   isLogout?: boolean;
-  active?: boolean;
 }
 
-// Componentes de apoyo
 const StatItem = ({ label, value }: StatItemProps) => (
   <View style={styles.statItem}>
     <Text style={styles.statValue}>{value}</Text>
@@ -49,10 +47,7 @@ const StatItem = ({ label, value }: StatItemProps) => (
 
 const MenuOption = ({ icon, label, onPress, isLogout }: MenuOptionProps) => (
   <TouchableOpacity
-    style={[
-      styles.menuOption,
-      isLogout && styles.logoutOption, // Estilo especial si es logout
-    ]}
+    style={[styles.menuOption, isLogout && styles.logoutOption]}
     onPress={onPress}
     activeOpacity={0.7}
   >
@@ -87,6 +82,7 @@ export default function ClientePerfil() {
   const [userData, setUserData] = useState<{
     nombre: string;
     rol: string;
+    avatar_url?: string;
   } | null>(null);
 
   useEffect(() => {
@@ -95,18 +91,23 @@ export default function ClientePerfil() {
 
   const fetchUserProfile = async () => {
     try {
+      setLoading(true);
       const {
         data: { user },
       } = await supabase.auth.getUser();
       if (user) {
         const { data, error } = await supabase
           .from("perfiles")
-          .select("nombre_completo, rol")
+          .select("nombre_completo, rol, avatar_url") // <--- Columna añadida
           .eq("id", user.id)
           .single();
 
         if (error) throw error;
-        setUserData({ nombre: data.nombre_completo, rol: data.rol });
+        setUserData({
+          nombre: data.nombre_completo || "Usuario",
+          rol: data.rol || "Cliente",
+          avatar_url: data.avatar_url,
+        });
       }
     } catch (error) {
       console.error("Error cargando perfil:", error);
@@ -115,34 +116,32 @@ export default function ClientePerfil() {
     }
   };
 
+  const getInitials = (name: string) => {
+    if (!name || name === "Usuario") return "U";
+    const parts = name.trim().split(" ");
+    if (parts.length >= 2) {
+      return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+    }
+    return parts[0][0].toUpperCase();
+  };
+
   const handleLogout = async () => {
-    Alert.alert(
-      "Cerrar Sesión",
-      "¿Estás seguro de que deseas salir de RedProfesional? Deberás ingresar tus credenciales la próxima vez.",
-      [
-        { text: "Cancelar", style: "cancel" },
-        {
-          text: "Sí, cerrar sesión",
-          style: "destructive", // En iOS esto pone el texto en rojo
-          onPress: async () => {
-            try {
-              setLoading(true);
-              await supabase.auth.signOut();
-              await AsyncStorage.clear(); // Limpia caché local
-              router.replace("/HU-02/login");
-            } catch (error) {
-              Alert.alert(
-                "Error",
-                "No se pudo cerrar la sesión correctamente.",
-              );
-            } finally {
-              setLoading(false);
-            }
-          },
+    Alert.alert("Cerrar Sesión", "¿Estás seguro de que deseas salir?", [
+      { text: "Cancelar", style: "cancel" },
+      {
+        text: "Sí, cerrar sesión",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await supabase.auth.signOut();
+            await AsyncStorage.clear();
+            router.replace("/HU-02/login");
+          } catch (error) {
+            Alert.alert("Error", "No se pudo cerrar la sesión.");
+          }
         },
-      ],
-      { cancelable: true },
-    );
+      },
+    ]);
   };
 
   if (loading) {
@@ -150,7 +149,7 @@ export default function ClientePerfil() {
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={COLORS.primaryBlue} />
         <Text style={{ marginTop: 10, color: COLORS.primaryBlue }}>
-          Cerrando sesión...
+          Cargando perfil...
         </Text>
       </View>
     );
@@ -160,7 +159,6 @@ export default function ClientePerfil() {
     <SafeAreaView style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
 
-      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={28} color={COLORS.white} />
@@ -172,40 +170,44 @@ export default function ClientePerfil() {
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Info Perfil */}
         <View style={styles.profileHeader}>
           <View style={styles.avatarContainer}>
-            <Image
-              source={{ uri: "https://randomuser.me/api/portraits/men/32.jpg" }}
-              style={styles.mainAvatar}
-            />
+            {userData?.avatar_url ? (
+              <Image
+                source={{ uri: userData.avatar_url }}
+                style={styles.mainAvatar}
+              />
+            ) : (
+              <View style={[styles.mainAvatar, styles.initialsContainer]}>
+                <Text style={styles.initialsText}>
+                  {getInitials(userData?.nombre || "")}
+                </Text>
+              </View>
+            )}
             <TouchableOpacity style={styles.editPhotoBadge}>
               <Ionicons name="camera" size={16} color="white" />
             </TouchableOpacity>
           </View>
-          <Text style={styles.userName}>{userData?.nombre || "Usuario"}</Text>
+
+          <Text style={styles.userName}>{userData?.nombre}</Text>
           <Text style={styles.userJob}>Cliente Verificado</Text>
           <View style={styles.roleBadge}>
-            <Text style={styles.roleText}>
-              {userData?.rol?.toUpperCase() || "CLIENTE"}
-            </Text>
+            <Text style={styles.roleText}>{userData?.rol?.toUpperCase()}</Text>
           </View>
         </View>
 
-        {/* Stats */}
         <View style={styles.statsContainer}>
           <StatItem value="12" label="Pedidos" />
           <StatItem value="8" label="Contratos" />
           <StatItem value="4.9" label="Rating" />
         </View>
 
-        {/* Menú */}
         <View style={styles.menuContainer}>
           <Text style={styles.sectionTitle}>Cuenta</Text>
           <MenuOption
             icon="person-outline"
             label="Mi perfil"
-            onPress={() => router.push("/HU-04/EditarDatosPersonales")}
+            onPress={() => router.push("/HU-04/miPerfil")}
           />
           <MenuOption icon="card-outline" label="Métodos de pago" />
 
@@ -215,7 +217,6 @@ export default function ClientePerfil() {
 
           <View style={styles.divider} />
 
-          {/* OPCIÓN CERRAR SESIÓN POTENCIADA */}
           <MenuOption
             icon="log-out"
             label="Cerrar sesión"
@@ -225,8 +226,6 @@ export default function ClientePerfil() {
           <Text style={styles.versionText}>Versión 1.0.4 - RedProfesional</Text>
         </View>
       </ScrollView>
-
-      {/* BottomTab omitido para brevedad, pero mantén el tuyo */}
     </SafeAreaView>
   );
 }
@@ -264,6 +263,16 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderColor: COLORS.lightGray,
   },
+  initialsContainer: {
+    backgroundColor: COLORS.primaryBlue,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  initialsText: {
+    color: COLORS.white,
+    fontSize: 40,
+    fontWeight: "bold",
+  },
   editPhotoBadge: {
     position: "absolute",
     bottom: 15,
@@ -276,6 +285,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     borderWidth: 2,
     borderColor: "white",
+    zIndex: 10,
   },
   userName: { fontSize: 22, fontWeight: "bold", color: "#111827" },
   userJob: { fontSize: 14, color: COLORS.textGray, marginBottom: 10 },

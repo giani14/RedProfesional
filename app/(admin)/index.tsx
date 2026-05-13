@@ -4,13 +4,11 @@ import {
   Ionicons,
   MaterialCommunityIcons,
 } from "@expo/vector-icons";
-import { Stack, useRouter } from "expo-router";
+import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Platform,
   ScrollView,
-  StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -29,14 +27,12 @@ export default function HomeAdminScreen() {
   async function getProfile() {
     try {
       setLoading(true);
-      // 1. Obtenemos el usuario actual de la sesión
       const {
         data: { user },
       } = await supabase.auth.getUser();
 
       if (user) {
-        // 2. Buscamos el nombre en tu tabla 'perfiles'
-        const { data: perfil, error } = await supabase
+        const { data: perfil } = await supabase
           .from("perfiles")
           .select("nombre_completo")
           .eq("id", user.id)
@@ -55,39 +51,15 @@ export default function HomeAdminScreen() {
 
   return (
     <View style={styles.mainContainer}>
-      <Stack.Screen options={{ headerShown: false }} />
-
-      {/* StatusBar integrada con el Header azul */}
-      <StatusBar
-        barStyle="light-content"
-        backgroundColor="#1A3B63"
-        translucent={true}
-      />
-      <View style={styles.safeAreaSpacing} />
-
-      {/* --- HEADER --- */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.headerIcon}>
-          <Ionicons name="menu" size={28} color="white" />
-        </TouchableOpacity>
-
-        <View style={styles.logoContainer}>
-          <Text style={styles.logoRed}>Red</Text>
-          <Text style={styles.logoProfesional}>Profesional</Text>
-        </View>
-
-        <TouchableOpacity style={styles.headerIcon}>
-          <Ionicons name="notifications" size={24} color="white" />
-          {/* Punto de notificación opcional */}
-          <View style={styles.notificationDot} />
-        </TouchableOpacity>
-      </View>
+      {/* 
+          No necesitamos Stack.Screen ni StatusBar aquí, 
+          ya que el (admin)/_layout.tsx se encarga de eso.
+      */}
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* --- SECCIÓN DE BIENVENIDA --- */}
         <View style={styles.welcomeSection}>
           <View style={styles.avatarContainer}>
-            {/* Imagen de avatar circular (replicando el estilo de la imagen) */}
             <View style={styles.avatarCircle}>
               <FontAwesome5 name="user-tie" size={40} color="#1A3B63" />
             </View>
@@ -111,13 +83,13 @@ export default function HomeAdminScreen() {
         {/* --- PANEL DE ADMINISTRACIÓN --- */}
         <Text style={styles.panelTitle}>Panel de administración</Text>
 
-        {/* Tarjeta: Gestionar Usuarios */}
+        {/* Tarjeta: Gestionar Usuarios -> Navega a la Tab de Usuarios */}
         <TouchableOpacity
           style={styles.card}
           activeOpacity={0.7}
-          onPress={() => router.push("/HU-23/gestionarUsuarios")}
+          onPress={() => router.push("/(admin)/usuarios")}
         >
-          <View style={[styles.cardIconContainer]}>
+          <View style={styles.cardIconContainer}>
             <MaterialCommunityIcons
               name="account-group"
               size={32}
@@ -133,11 +105,11 @@ export default function HomeAdminScreen() {
           <Ionicons name="chevron-forward" size={24} color="#1A3B63" />
         </TouchableOpacity>
 
-        {/* Tarjeta: Gestionar Categorías */}
+        {/* Tarjeta: Gestionar Categorías -> Navega a la Tab de Categorías */}
         <TouchableOpacity
           style={styles.card}
           activeOpacity={0.7}
-          onPress={() => router.push("/HU-25/categorias")}
+          onPress={() => router.push("/(admin)/categorias")}
         >
           <View style={styles.cardIconContainer}>
             <Ionicons name="folder" size={32} color="#EBB934" />
@@ -149,8 +121,12 @@ export default function HomeAdminScreen() {
           <Ionicons name="chevron-forward" size={24} color="#1A3B63" />
         </TouchableOpacity>
 
-        {/* Tarjeta: Editar datos personales */}
-        <TouchableOpacity style={styles.card} activeOpacity={0.7}>
+        {/* Tarjeta: Perfil -> Navega a la Tab de Perfil */}
+        <TouchableOpacity
+          style={styles.card}
+          activeOpacity={0.7}
+          onPress={() => router.push("/(admin)/perfil")}
+        >
           <View style={styles.cardIconContainer}>
             <Ionicons name="person-circle-outline" size={32} color="#1A3B63" />
           </View>
@@ -161,63 +137,12 @@ export default function HomeAdminScreen() {
           <Ionicons name="chevron-forward" size={24} color="#1A3B63" />
         </TouchableOpacity>
       </ScrollView>
-
-      {/* --- TAB BAR INFERIOR (Simulado según imagen) --- */}
-      <View style={styles.tabBar}>
-        <TouchableOpacity style={styles.tabItem}>
-          <Ionicons name="home" size={24} color="#3878B3" />
-          <Text style={[styles.tabText, { color: "#3878B3" }]}>Inicio</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.tabItem}
-          onPress={() => router.push("/HU-23/gestionarUsuarios")}
-        >
-          <Ionicons name="people-outline" size={24} color="#777" />
-          <Text style={styles.tabText}>Usuarios</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.tabItem}
-          onPress={() => router.push("/HU-25/categorias")}
-        >
-          <Ionicons name="folder-outline" size={24} color="#777" />
-          <Text style={styles.tabText}>Categorías</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.tabItem}>
-          <Ionicons name="person-outline" size={24} color="#777" />
-          <Text style={styles.tabText}>Perfil</Text>
-        </TouchableOpacity>
-      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  mainContainer: { flex: 1, backgroundColor: "#F3F4F6" },
-  safeAreaSpacing: {
-    height: Platform.OS === "android" ? StatusBar.currentHeight : 0,
-    backgroundColor: "#1A3B63",
-  },
-  header: {
-    height: 70,
-    backgroundColor: "#1A3B63",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 15,
-  },
-  headerIcon: { padding: 5, position: "relative" },
-  notificationDot: {
-    position: "absolute",
-    top: 5,
-    right: 5,
-    width: 8,
-    height: 8,
-    backgroundColor: "white",
-    borderRadius: 4,
-  },
-  logoContainer: { flexDirection: "row", alignItems: "center" },
-  logoRed: { fontSize: 22, fontWeight: "bold", color: "#D85C31" },
-  logoProfesional: { fontSize: 22, fontWeight: "bold", color: "white" },
+  mainContainer: { flex: 1, backgroundColor: "#F9FAFB" },
   content: { flex: 1, paddingHorizontal: 20 },
   welcomeSection: {
     flexDirection: "row",
@@ -229,7 +154,7 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: "#FDE08D", // Amarillo suave de la imagen
+    backgroundColor: "#FDE08D",
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 1,
@@ -237,8 +162,8 @@ const styles = StyleSheet.create({
   },
   welcomeTextContainer: { flex: 1 },
   welcomeTitle: { fontSize: 18, fontWeight: "bold", color: "#333" },
-  welcomeSubtitle: { fontSize: 14, color: "#777", marginTop: 4 },
-  divider: { height: 1, backgroundColor: "#E0E0E0", marginBottom: 25 },
+  welcomeSubtitle: { fontSize: 14, color: "#666", marginTop: 4 },
+  divider: { height: 1, backgroundColor: "#E5E7EB", marginBottom: 25 },
   panelTitle: {
     fontSize: 18,
     fontWeight: "bold",
@@ -248,32 +173,24 @@ const styles = StyleSheet.create({
   card: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FCEFC7", // Color crema/amarillo muy claro de las tarjetas
+    backgroundColor: "#FFF9E5", // Crema de tu imagen
     borderRadius: 15,
     padding: 15,
     marginBottom: 15,
-    borderWidth: 1,
-    borderColor: "#F9E4B0",
+    elevation: 2, // Sombra suave en Android
+    shadowColor: "#000", // Sombra en iOS
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
   cardIconContainer: {
     width: 50,
     height: 50,
     justifyContent: "center",
     alignItems: "center",
-    marginRight: 15,
+    marginRight: 12,
   },
   cardTextContainer: { flex: 1 },
   cardTitle: { fontSize: 16, fontWeight: "bold", color: "#1A3B63" },
-  cardSubtitle: { fontSize: 13, color: "#666", marginTop: 2 },
-  // Estilos de la barra inferior
-  tabBar: {
-    height: 70,
-    flexDirection: "row",
-    backgroundColor: "white",
-    borderTopWidth: 1,
-    borderTopColor: "#E0E0E0",
-    paddingBottom: 5,
-  },
-  tabItem: { flex: 1, justifyContent: "center", alignItems: "center" },
-  tabText: { fontSize: 12, marginTop: 4, color: "#777" },
+  cardSubtitle: { fontSize: 13, color: "#6B7280", marginTop: 2 },
 });

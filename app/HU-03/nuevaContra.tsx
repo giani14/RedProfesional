@@ -99,7 +99,7 @@ export default function NuevaContra() {
       if (error) {
         Alert.alert("Error", error.message);
       } else {
-        router.push("/HU-02/contrActua");
+        router.push("/HU-03/contrActua");
       }
     } catch (err) {
       Alert.alert("Error", "Ocurrió un error inesperado.");

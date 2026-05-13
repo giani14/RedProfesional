@@ -101,11 +101,11 @@ export default function Login() {
       const rol = (perfilData.rol || "").toLowerCase().trim();
 
       if (rol === "administrador" || rol === "admin") {
-        router.replace("/HOME/homeAdmin");
+        router.replace("/(admin)");
       } else if (rol === "cliente") {
-        router.replace("/HOME/clienteHome");
+        router.replace("/(cliente)");
       } else if (rol === "profesional") {
-        router.replace("/HOME/clienteHome");
+        router.replace("/(profesional)");
       } else {
         router.replace("/HU-05/selRol");
       }
@@ -261,7 +261,7 @@ export default function Login() {
 
             <TouchableOpacity
               style={styles.forgotContainer}
-              onPress={() => router.push("/HU-02/recupeContra")}
+              onPress={() => router.push("/HU-03/recupeContra")}
             >
               <Text style={styles.forgotText}>¿Olvidaste tu contraseña?</Text>
             </TouchableOpacity>
@@ -297,7 +297,7 @@ export default function Login() {
             <View style={styles.footer}>
               <Text style={styles.footerText}>¿Aún no eres parte? </Text>
               <TouchableOpacity onPress={() => router.push("/HU-01/registrar")}>
-                <Text style={styles.footerLink}>Únete aquí</Text>
+                <Text style={styles.footerLink}>Registrate</Text>
               </TouchableOpacity>
             </View>
           </View>

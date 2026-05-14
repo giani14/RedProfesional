@@ -91,6 +91,14 @@ export default function ProfesionalLayout() {
       />
 
       <Tabs.Screen
+        name="solicitudDetalle"
+        options={{
+          href: null,
+          headerShown: false,
+        }}
+      />
+
+      <Tabs.Screen
         name="perfil"
         options={{
           title: "Perfil",

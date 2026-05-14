@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import { Stack } from "expo-router";
+import { Stack, useRouter } from "expo-router";
 import React, { useMemo, useState } from "react";
 import {
   FlatList,
@@ -87,10 +87,16 @@ const estadoStyles: Record<
   Rechazada: { bg: COLORS.rejectedBg, color: COLORS.rejectedText },
 };
 
-function SolicitudCard({ item }: { item: Solicitud }) {
+function SolicitudCard({
+  item,
+  onPress,
+}: {
+  item: Solicitud;
+  onPress: () => void;
+}) {
   const badge = estadoStyles[item.estado];
   return (
-    <TouchableOpacity style={styles.card} activeOpacity={0.7}>
+    <TouchableOpacity style={styles.card} activeOpacity={0.7} onPress={onPress}>
       <View style={styles.avatar}>
         <Ionicons name="person" size={28} color={COLORS.textGray} />
       </View>
@@ -119,6 +125,7 @@ function SolicitudCard({ item }: { item: Solicitud }) {
 }
 
 export default function SolicitudesProfesional() {
+  const router = useRouter();
   const [filtroActivo, setFiltroActivo] = useState<Filtro>("Todas");
 
   const solicitudesFiltradas = useMemo(() => {
@@ -177,7 +184,17 @@ export default function SolicitudesProfesional() {
         <FlatList
           data={solicitudesFiltradas}
           keyExtractor={(item) => item.id}
-          renderItem={({ item }) => <SolicitudCard item={item} />}
+          renderItem={({ item }) => (
+            <SolicitudCard
+              item={item}
+              onPress={() =>
+                router.push({
+                  pathname: "/(profesional)/solicitudDetalle",
+                  params: { id: item.id },
+                })
+              }
+            />
+          )}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
         />

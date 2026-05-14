@@ -1,16 +1,18 @@
 import { supabase } from "@/lib/supabase";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { Stack, useRouter } from "expo-router"; // Importado
 import React, { useEffect, useMemo, useState } from "react";
 import {
-    FlatList,
-    ListRenderItem,
-    Modal,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  FlatList,
+  ListRenderItem,
+  Modal,
+  Platform,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 interface Categorias {
@@ -171,57 +173,99 @@ export default function PantallaCategorias() {
   );
 
   return (
-    <View style={styles.container}>
+    <View style={styles.mainContainer}>
       <Stack.Screen options={{ headerShown: false }} />
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Gestión de categorías</Text>
-        <Ionicons name="notifications-outline" size={22} />
-      </View>
-
-      <View style={styles.searchContainer}>
-        <Ionicons name="search-outline" size={18} color="#9ca3af" />
-        <TextInput
-          placeholder="Buscar categorías..."
-          style={styles.input}
-          value={query}
-          onChangeText={(text) => {
-            setQuery(text);
-            setPage(1);
-          }}
-        />
-        <Ionicons name="options-outline" size={18} color="#9ca3af" />
-      </View>
-
-      <View style={styles.infoRow}>
-        <Text style={styles.infoText}>Total: {filtered.length} categorías</Text>
-        <TouchableOpacity style={styles.button} onPress={openCreate}>
-          <Text style={styles.buttonText}>+ Nueva categoría</Text>
-        </TouchableOpacity>
-      </View>
-
-      <FlatList<Categorias>
-        data={paginated}
-        keyExtractor={(item) => item.id}
-        renderItem={renderItem}
+      <StatusBar
+        barStyle="light-content"
+        backgroundColor="#1A3B63"
+        translucent={true}
       />
 
-      <View style={styles.pagination}>
-        <TouchableOpacity
-          style={styles.pageButton}
-          onPress={() => setPage((p) => Math.max(1, p - 1))}
-        >
-          <Text style={styles.pageText}>{"<"}</Text>
+      {/* Ajuste para la barra de estado del teléfono */}
+      <View style={styles.safeAreaSpacing} />
+
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()}>
+          <Ionicons name="arrow-back" size={28} color="white" />
         </TouchableOpacity>
-        <View style={styles.pageIndicator}>
-          <Text style={styles.currentPageText}>{page}</Text>
-          <Text style={styles.totalPagesText}> de {totalPages}</Text>
+        <Text style={styles.headerTitle}>Gestión de categorías</Text>
+        <TouchableOpacity>
+          <Ionicons name="notifications-outline" size={24} color="white" />
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.body}>
+        <View style={styles.searchSection}>
+          <View style={styles.searchBar}>
+            <Ionicons
+              name="search"
+              size={20}
+              color="#999"
+              style={{ marginRight: 10 }}
+            />
+            <TextInput
+              placeholder="Buscar categorías..."
+              style={styles.searchInput}
+              placeholderTextColor="#999"
+              value={query}
+              onChangeText={(text) => {
+                setQuery(text);
+                setPage(1);
+              }}
+            />
+          </View>
+          <TouchableOpacity style={styles.filterButton}>
+            <MaterialIcons name="filter-list" size={24} color="#1A3B63" />
+          </TouchableOpacity>
         </View>
-        <TouchableOpacity
-          style={styles.pageButton}
-          onPress={() => setPage((p) => Math.min(totalPages, p + 1))}
-        >
-          <Text style={styles.pageText}>{">"}</Text>
-        </TouchableOpacity>
+
+        <View style={styles.actionRow}>
+          <Text style={styles.totalText}>
+            Total: {filtered.length} categorías
+          </Text>
+          <TouchableOpacity style={styles.newUserButton} onPress={openCreate}>
+            <Ionicons name="add" size={20} color="#1A3B63" />
+            <Text style={styles.newUserText}>Nueva categoría</Text>
+          </TouchableOpacity>
+        </View>
+
+        <FlatList<Categorias>
+          data={paginated}
+          keyExtractor={(item) => item.id}
+          renderItem={renderItem}
+          showsVerticalScrollIndicator={false}
+        />
+
+        <View style={styles.pagination}>
+          <TouchableOpacity
+            style={styles.pageArrow}
+            onPress={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={page === 1}
+          >
+            <Ionicons
+              name="chevron-back"
+              size={20}
+              color={page === 1 ? "#CCC" : "#1A3B63"}
+            />
+          </TouchableOpacity>
+
+          <View style={styles.pageNumberActive}>
+            <Text style={styles.pageTextActive}>{page}</Text>
+          </View>
+          <Text style={styles.pageText}> de {totalPages}</Text>
+
+          <TouchableOpacity
+            style={styles.pageArrow}
+            onPress={() => setPage((p) => Math.min(totalPages, p + 1))}
+            disabled={page === totalPages}
+          >
+            <Ionicons
+              name="chevron-forward"
+              size={20}
+              color={page === totalPages ? "#CCC" : "#1A3B63"}
+            />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Los Modales se mantienen igual ya que son lógica interna del componente */}
@@ -294,7 +338,108 @@ export default function PantallaCategorias() {
 }
 
 const styles = StyleSheet.create({
-  // Estilos mantenidos...
+  mainContainer: { flex: 1, backgroundColor: "#F3F4F6" },
+  safeAreaSpacing: {
+    height: Platform.OS === "android" ? StatusBar.currentHeight : 0,
+    backgroundColor: "#1A3B63",
+  },
+  header: {
+    height: 70,
+    backgroundColor: "#1A3B63",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 15,
+  },
+  headerTitle: { color: "white", fontSize: 18, fontWeight: "600" },
+  body: { flex: 1, paddingHorizontal: 15 },
+  searchSection: {
+    flexDirection: "row",
+    marginTop: 20,
+    alignItems: "center",
+  },
+  searchBar: {
+    flex: 1,
+    flexDirection: "row",
+    backgroundColor: "white",
+    borderRadius: 10,
+    paddingHorizontal: 15,
+    height: 50,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#D1D5DB",
+  },
+  searchInput: { flex: 1, color: "#333" },
+  filterButton: {
+    backgroundColor: "white",
+    width: 50,
+    height: 50,
+    borderRadius: 10,
+    justifyContent: "center",
+    alignItems: "center",
+    marginLeft: 10,
+    borderWidth: 1,
+    borderColor: "#D1D5DB",
+  },
+  actionRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginVertical: 20,
+  },
+  totalText: { fontSize: 16, fontWeight: "bold", color: "#666" },
+  newUserButton: {
+    flexDirection: "row",
+    backgroundColor: "#F9B934",
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    borderRadius: 10,
+    alignItems: "center",
+  },
+  newUserText: { color: "#1A3B63", fontWeight: "bold", marginLeft: 5 },
+  card: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: "white",
+    borderRadius: 15,
+    padding: 15,
+    marginBottom: 15,
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  cardLeft: { flexDirection: "row", alignItems: "center", flex: 1 },
+  iconContainer: {
+    backgroundColor: "#dbeafe",
+    padding: 10,
+    borderRadius: 12,
+    marginRight: 12,
+  },
+  title: { fontSize: 16, fontWeight: "bold", color: "#333" },
+  subtitle: { fontSize: 13, color: "#777", marginTop: 2 },
+  actions: { flexDirection: "row", gap: 12 },
+  pagination: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 10,
+    paddingBottom: 20,
+  },
+  pageArrow: { padding: 10 },
+  pageNumberActive: {
+    width: 35,
+    height: 35,
+    backgroundColor: "#F9B934",
+    borderRadius: 8,
+    justifyContent: "center",
+    alignItems: "center",
+    marginHorizontal: 5,
+  },
+  pageText: { color: "#666", fontWeight: "bold" },
+  pageTextActive: { color: "#1A3B63", fontWeight: "bold" },
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.4)",
@@ -350,78 +495,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   cancelText: { color: "#2563eb", fontWeight: "600" },
-  container: {
-    flex: 1,
-    backgroundColor: "#f3f4f6",
-    padding: 16,
-    paddingTop: 50,
-  },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 16,
-  },
-  headerTitle: { fontSize: 18, fontWeight: "bold" },
-  searchContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 10,
-    marginBottom: 16,
-  },
-  input: { flex: 1, marginHorizontal: 8 },
-  infoRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 16,
-    alignItems: "center",
-  },
-  infoText: { color: "#4b5563" },
-  button: { backgroundColor: "#facc15", padding: 10, borderRadius: 12 },
-  buttonText: { fontWeight: "600" },
-  card: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    backgroundColor: "#fff",
-    padding: 16,
-    borderRadius: 16,
-    marginBottom: 12,
-    elevation: 1,
-  },
-  cardLeft: { flexDirection: "row", alignItems: "center" },
-  iconContainer: {
-    backgroundColor: "#dbeafe",
-    padding: 10,
-    borderRadius: 12,
-    marginRight: 12,
-  },
-  title: { fontWeight: "600" },
-  subtitle: { color: "#6b7280", fontSize: 12 },
-  actions: { flexDirection: "row", gap: 12 },
-  pagination: {
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    marginTop: 16,
-    gap: 12,
-    paddingBottom: 20,
-  },
-  pageIndicator: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  pageText: { fontWeight: "bold" },
-  currentPageText: { fontWeight: "bold", fontSize: 16 },
-  totalPagesText: { color: "#6b7280" },
-  pageButton: {
-    backgroundColor: "#facc15",
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    justifyContent: "center",
-    alignItems: "center",
-  },
   modalContainer: {
     flex: 1,
     justifyContent: "center",

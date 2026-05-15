@@ -182,6 +182,21 @@ export default function ProfesionalIndex() {
             color={COLORS.cardYellow}
             onPress={() => router.push("/(profesional)/proyecto")}
           />
+           <QuickAccessCard
+            icon="cloud-upload-outline"
+            title="Subir portafolio"
+            subtitle="Agrega trabajos realizados"
+            color={COLORS.cardYellow}
+            onPress={() => router.push("/HU-09")}
+          />
+
+          <QuickAccessCard
+            icon="create-outline"
+            title="Editar portafolio"
+            subtitle="Modifica o elimina trabajos"
+            color={COLORS.cardBlue}
+            onPress={() => router.push("/HU-10")}
+          />
           <QuickAccessCard
             icon="search-outline"
             title="Buscar clientes"

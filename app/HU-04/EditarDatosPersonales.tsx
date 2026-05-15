@@ -24,19 +24,22 @@ export default function EditarDatosPersonales() {
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
   const [idUsuario, setIdUsuario] = useState<string | null>(null);
-  const [obteniendoGPS, setObteniendoGPS] = useState(false);
+  const [obteniendoGPS, setObteniendoGPS] = useState(false);2
 
   const [nombre, setNombre] = useState("");
   const [correo, setCorreo] = useState("");
   const [telefono, setTelefono] = useState("");
   const [ubicacion, setUbicacion] = useState("");
+  const [profesion, setProfesion] = useState("");
+const [experiencia, setExperiencia] = useState("");
+const [descripcion, setDescripcion] = useState("");
   const [fotoPerfil, setFotoPerfil] = useState(
     "https://via.placeholder.com/150",
   );
 
   const [hayCambios, setHayCambios] = useState(false);
   const [intentoGuardar, setIntentoGuardar] = useState(false);
-
+  const [rol, setRol] = useState("profesional");
   useEffect(() => {
     obtenerPerfil();
 
@@ -75,10 +78,15 @@ export default function EditarDatosPersonales() {
         .single();
 
       if (data) {
-        setNombre(data.nombre_completo || "");
+  setRol(data.rol || "cliente");
+
+  setNombre(data.nombre_completo || "");
         setCorreo(user.email || "");
         setTelefono(data.telefono || "");
         setUbicacion(data.ubicacion || "");
+        setProfesion(data.profesion || "");
+        setExperiencia(data.experiencia || "");
+        setDescripcion(data.descripcion || "");
         if (data.avatar_url) setFotoPerfil(data.avatar_url);
       }
     } catch (error) {
@@ -154,6 +162,9 @@ export default function EditarDatosPersonales() {
         nombre_completo: nombre.trim(),
         telefono: telefono.trim(),
         ubicacion: ubicacion.trim(),
+        profesion: profesion.trim(),
+        experiencia: experiencia.trim(),
+        descripcion: descripcion.trim(),
         avatar_url: fotoPerfil,
         updated_at: new Date().toISOString(), // Corrección: ISO String para Supabase
       });
@@ -180,6 +191,232 @@ export default function EditarDatosPersonales() {
       </View>
     );
   }
+
+if (rol.toLowerCase() === "profesional") {
+  return (
+    <>
+      <ScrollView
+        style={styles.contenedor}
+        contentContainerStyle={{ paddingBottom: 40 }}
+      >
+        <Stack.Screen options={{ headerShown: false }} />
+
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()}>
+            <Ionicons name="arrow-back" size={24} color="white" />
+          </TouchableOpacity>
+
+          <Text style={styles.headerTitulo}>
+            Editar perfil profesional
+          </Text>
+        </View>
+
+        <View style={styles.cuerpo}>
+          <View style={styles.seccionFoto}>
+            <Image
+              source={{ uri: fotoPerfil }}
+              style={styles.avatar}
+            />
+          </View>
+
+          <View style={styles.form}>
+            
+            <Text style={styles.label}>Nombre completo</Text>
+
+<View
+  style={[
+    styles.inputContainer,
+    intentoGuardar && errores.nombre && styles.inputErrorBorde,
+  ]}
+>
+  <Ionicons
+    name="person-outline"
+    size={20}
+    color={intentoGuardar && errores.nombre ? "#E74C3C" : "#666"}
+  />
+
+  <TextInput
+    style={styles.input}
+    value={nombre}
+    onChangeText={(txt) => {
+      setNombre(txt);
+      setHayCambios(true);
+    }}
+    placeholder="Ej. Juan Pérez"
+  />
+</View>
+
+{intentoGuardar && errores.nombre && (
+  <Text style={styles.errorTxt}>
+    El nombre es obligatorio.
+  </Text>
+)}
+
+<Text style={styles.label}>Teléfono</Text>
+
+<View
+  style={[
+    styles.inputContainer,
+    intentoGuardar && errores.telefono && styles.inputErrorBorde,
+  ]}
+>
+  <Ionicons
+    name="call-outline"
+    size={20}
+    color={intentoGuardar && errores.telefono ? "#E74C3C" : "#666"}
+  />
+
+  <TextInput
+    style={styles.input}
+    value={telefono}
+    keyboardType="phone-pad"
+    onChangeText={(txt) => {
+      setTelefono(txt);
+      setHayCambios(true);
+    }}
+    placeholder="77123456"
+    maxLength={8}
+  />
+</View>
+
+{intentoGuardar && errores.telefono && (
+  <Text style={styles.errorTxt}>
+    Número no válido (8 dígitos).
+  </Text>
+)}
+
+<Text style={styles.label}>Ubicación</Text>
+
+<View
+  style={[
+    styles.inputContainer,
+    intentoGuardar && errores.ubicacion && styles.inputErrorBorde,
+  ]}
+>
+  <Ionicons
+    name="location-outline"
+    size={20}
+    color={intentoGuardar && errores.ubicacion ? "#E74C3C" : "#666"}
+  />
+
+  <TextInput
+    style={styles.input}
+    value={ubicacion}
+    onChangeText={(txt) => {
+      setUbicacion(txt);
+      setHayCambios(true);
+    }}
+    placeholder="Ciudad, País"
+  />
+
+  <TouchableOpacity
+    onPress={obtenerUbicacionActual}
+    disabled={obteniendoGPS}
+  >
+    {obteniendoGPS ? (
+      <ActivityIndicator size="small" color="#FFB100" />
+    ) : (
+      <Ionicons name="locate" size={20} color="#007AFF" />
+    )}
+  </TouchableOpacity>
+</View>
+
+{intentoGuardar && errores.ubicacion && (
+  <Text style={styles.errorTxt}>
+    La ubicación es obligatoria.
+  </Text>
+)}
+
+            <Text style={styles.label}>
+  Profesión / Especialidad
+</Text>
+
+<View style={styles.inputContainer}>
+  <Ionicons
+    name="briefcase-outline"
+    size={20}
+    color="#666"
+  />
+
+  <TextInput
+    style={styles.input}
+    value={profesion}
+    onChangeText={(txt) => {
+      setProfesion(txt);
+      setHayCambios(true);
+    }}
+    placeholder="Electricista"
+  />
+</View>
+
+<Text style={styles.label}>
+  Experiencia
+</Text>
+
+<View style={styles.inputContainer}>
+  <Ionicons
+    name="calendar-outline"
+    size={20}
+    color="#666"
+  />
+
+  <TextInput
+    style={styles.input}
+    value={experiencia}
+    onChangeText={(txt) => {
+      setExperiencia(txt);
+      setHayCambios(true);
+    }}
+    placeholder="5 años"
+  />
+</View>
+
+<Text style={styles.label}>
+  Descripción
+</Text>
+
+<View
+  style={[
+    styles.inputContainer,
+    {
+      height: 120,
+      alignItems: "flex-start",
+      paddingTop: 15,
+    },
+  ]}
+>
+  <Ionicons
+    name="document-text-outline"
+    size={20}
+    color="#666"
+  />
+
+  <TextInput
+    style={styles.input}
+    multiline
+    value={descripcion}
+    onChangeText={(txt) => {
+      setDescripcion(txt);
+      setHayCambios(true);
+    }}
+    placeholder="Describe tus servicios..."
+  />
+</View>
+
+            <TouchableOpacity
+              style={styles.btnGuardar}
+              onPress={manejarGuardar}
+            >
+              <Text style={styles.btnTexto}>
+                Guardar perfil profesional
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </ScrollView>
+    </>
+  );
+}
 
   return (
     <>

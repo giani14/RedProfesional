@@ -1,7 +1,17 @@
+import {
+    actualizarPortafolio,
+    ArchivoPortafolioDB,
+    eliminarPortafolio,
+    listarMisPortafolios,
+    PortafolioDB,
+    subirArchivoPortafolio,
+} from "@/lib/portafolioService";
+import { supabase } from "@/lib/supabase";
 import * as DocumentPicker from "expo-document-picker";
 import { router } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
+    ActivityIndicator,
     Alert,
     Image,
     ScrollView,
@@ -12,82 +22,49 @@ import {
     View,
 } from "react-native";
 
-type ArchivoPortafolio = {
-  name: string;
-  uri?: string;
-  mimeType?: string;
-  size?: number;
-};
-
-type PortafolioItem = {
-  id: number;
-  titulo: string;
-  descripcion: string;
-  categoria: string;
-  archivos: ArchivoPortafolio[];
-  imagenUri?: string;
-};
+type PortafolioItem = PortafolioDB;
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
 
 export default function HU10EditarEliminarPortafolio() {
-  const [items, setItems] = useState<PortafolioItem[]>([
-    {
-      id: 1,
-      titulo: "Instalación eléctrica completa",
-      descripcion:
-        "Instalación eléctrica completa en vivienda unifamiliar. Incluye cableado, tableros de distribución, puesta a tierra y luminarias.",
-      categoria: "Electricidad",
-      archivos: [
-        { name: "foto_proyecto_01.jpg", mimeType: "image/jpeg" },
-        { name: "certificado_trabajo.pdf", mimeType: "application/pdf" },
-      ],
-    },
-    {
-      id: 2,
-      titulo: "Iluminación LED comercial",
-      descripcion:
-        "Instalación de luminarias LED en ambiente comercial con optimización de consumo eléctrico.",
-      categoria: "Electricidad",
-      archivos: [
-        { name: "iluminacion_led.jpg", mimeType: "image/jpeg" },
-        { name: "reporte_led.pdf", mimeType: "application/pdf" },
-      ],
-    },
-    {
-      id: 3,
-      titulo: "Tablero eléctrico trifásico",
-      descripcion:
-        "Montaje y mantenimiento de tablero eléctrico trifásico para ambiente industrial.",
-      categoria: "Electricidad",
-      archivos: [
-        { name: "tablero_trifasico.jpg", mimeType: "image/jpeg" },
-        { name: "plano_tablero.pdf", mimeType: "application/pdf" },
-      ],
-    },
-  ]);
+  const [items, setItems] = useState<PortafolioItem[]>([]);
+  const [cargando, setCargando] = useState(false);
+  const [procesando, setProcesando] = useState(false);
 
   const [modo, setModo] = useState<"lista" | "editar">("lista");
   const [mensajeExito, setMensajeExito] = useState("");
 
-  const [editandoId, setEditandoId] = useState<number | null>(null);
+  const [editandoId, setEditandoId] = useState<string | null>(null);
   const [tituloEditado, setTituloEditado] = useState("");
   const [descripcionEditada, setDescripcionEditada] = useState("");
   const [categoriaEditada, setCategoriaEditada] = useState("");
-  const [archivosEditados, setArchivosEditados] = useState<ArchivoPortafolio[]>(
+  const [archivosEditados, setArchivosEditados] = useState<ArchivoPortafolioDB[]>(
     []
   );
-  const [imagenEditadaUri, setImagenEditadaUri] = useState<string | undefined>(
-    undefined
-  );
+
+  useEffect(() => {
+    cargarPortafolios();
+  }, []);
+
+  const cargarPortafolios = async () => {
+    try {
+      setCargando(true);
+      const data = await listarMisPortafolios();
+      setItems(data);
+    } catch (error) {
+      console.error(error);
+      Alert.alert("Error", "No se pudo cargar el portafolio.");
+    } finally {
+      setCargando(false);
+    }
+  };
 
   const iniciarEdicion = (item: PortafolioItem) => {
     setEditandoId(item.id);
     setTituloEditado(item.titulo);
     setDescripcionEditada(item.descripcion);
     setCategoriaEditada(item.categoria);
-    setArchivosEditados(item.archivos);
-    setImagenEditadaUri(item.imagenUri);
+    setArchivosEditados(item.archivos || []);
     setMensajeExito("");
     setModo("editar");
   };
@@ -98,11 +75,20 @@ export default function HU10EditarEliminarPortafolio() {
     setDescripcionEditada("");
     setCategoriaEditada("");
     setArchivosEditados([]);
-    setImagenEditadaUri(undefined);
   };
 
   const seleccionarNuevoArchivo = async () => {
     try {
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (userError || !user) {
+        Alert.alert("Sesión requerida", "Debes iniciar sesión para subir archivos.");
+        return;
+      }
+
       const resultado = await DocumentPicker.getDocumentAsync({
         type: ["image/*", "application/pdf"],
         multiple: true,
@@ -111,7 +97,9 @@ export default function HU10EditarEliminarPortafolio() {
 
       if (resultado.canceled) return;
 
-      const nuevosArchivos: ArchivoPortafolio[] = [];
+      setProcesando(true);
+
+      const nuevosArchivos: ArchivoPortafolioDB[] = [];
 
       for (const file of resultado.assets) {
         if (file.size && file.size > MAX_FILE_SIZE) {
@@ -122,21 +110,25 @@ export default function HU10EditarEliminarPortafolio() {
           continue;
         }
 
-        nuevosArchivos.push({
+        const archivoSubido = await subirArchivoPortafolio(user.id, {
           name: file.name,
           uri: file.uri,
           mimeType: file.mimeType,
           size: file.size,
         });
 
-        if (file.mimeType?.includes("image")) {
-          setImagenEditadaUri(file.uri);
-        }
+        nuevosArchivos.push(archivoSubido);
       }
 
-      setArchivosEditados((prev) => [...prev, ...nuevosArchivos]);
+      if (nuevosArchivos.length > 0) {
+        setArchivosEditados((prev) => [...prev, ...nuevosArchivos]);
+        Alert.alert("Archivo agregado", "El archivo fue subido correctamente.");
+      }
     } catch (error) {
-      Alert.alert("Error", "No se pudo seleccionar el nuevo archivo.");
+      console.error(error);
+      Alert.alert("Error", "No se pudo subir el nuevo archivo.");
+    } finally {
+      setProcesando(false);
     }
   };
 
@@ -144,7 +136,12 @@ export default function HU10EditarEliminarPortafolio() {
     setArchivosEditados((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const guardarCambios = () => {
+  const guardarCambios = async () => {
+    if (!editandoId) {
+      Alert.alert("Error", "No se encontró el trabajo seleccionado.");
+      return;
+    }
+
     if (!tituloEditado.trim()) {
       Alert.alert("Campo obligatorio", "Debes ingresar el título del trabajo.");
       return;
@@ -168,27 +165,33 @@ export default function HU10EditarEliminarPortafolio() {
       return;
     }
 
-    setItems((prevItems) =>
-      prevItems.map((item) =>
-        item.id === editandoId
-          ? {
-              ...item,
-              titulo: tituloEditado,
-              descripcion: descripcionEditada,
-              categoria: categoriaEditada,
-              archivos: archivosEditados,
-              imagenUri: imagenEditadaUri,
-            }
-          : item
-      )
-    );
+    try {
+      setProcesando(true);
 
-    limpiarEdicion();
-    setModo("lista");
-    setMensajeExito("Portafolio actualizado correctamente");
+      const actualizado = await actualizarPortafolio({
+        id: editandoId,
+        titulo: tituloEditado,
+        descripcion: descripcionEditada,
+        categoria: categoriaEditada,
+        archivos: archivosEditados,
+      });
+
+      setItems((prevItems) =>
+        prevItems.map((item) => (item.id === actualizado.id ? actualizado : item))
+      );
+
+      limpiarEdicion();
+      setModo("lista");
+      setMensajeExito("Portafolio actualizado correctamente");
+    } catch (error) {
+      console.error(error);
+      Alert.alert("Error", "No se pudo actualizar el portafolio.");
+    } finally {
+      setProcesando(false);
+    }
   };
 
-  const confirmarEliminar = (id: number) => {
+  const confirmarEliminar = (id: string) => {
     Alert.alert(
       "Eliminar trabajo",
       "¿Estás seguro de eliminar este trabajo del portafolio?",
@@ -206,11 +209,33 @@ export default function HU10EditarEliminarPortafolio() {
     );
   };
 
-  const eliminarTrabajo = (id: number) => {
-    setItems((prevItems) => prevItems.filter((item) => item.id !== id));
-    limpiarEdicion();
-    setModo("lista");
-    setMensajeExito("Trabajo eliminado correctamente");
+  const eliminarTrabajo = async (id: string) => {
+    try {
+      setProcesando(true);
+
+      const item = items.find((trabajo) => trabajo.id === id);
+
+      if (!item) {
+        Alert.alert("Error", "No se encontró el trabajo.");
+        return;
+      }
+
+      await eliminarPortafolio({
+        id: item.id,
+        archivos: item.archivos || [],
+      });
+
+      setItems((prevItems) => prevItems.filter((trabajo) => trabajo.id !== id));
+
+      limpiarEdicion();
+      setModo("lista");
+      setMensajeExito("Trabajo eliminado correctamente");
+    } catch (error) {
+      console.error(error);
+      Alert.alert("Error", "No se pudo eliminar el trabajo.");
+    } finally {
+      setProcesando(false);
+    }
   };
 
   const volver = () => {
@@ -224,14 +249,21 @@ export default function HU10EditarEliminarPortafolio() {
   };
 
   const renderImagenTrabajo = (item: PortafolioItem) => {
-    if (item.imagenUri) {
+    const primerArchivo = item.archivos?.[0];
+    const esImagen = primerArchivo?.mimeType?.includes("image");
+
+    if (esImagen && item.portada_url) {
       return (
         <Image
-          source={{ uri: item.imagenUri }}
+          source={{ uri: item.portada_url }}
           style={styles.itemImage}
           resizeMode="cover"
         />
       );
+    }
+
+    if (primerArchivo?.mimeType?.includes("pdf")) {
+      return <Text style={styles.itemImageText}>PDF</Text>;
     }
 
     return <Text style={styles.itemImageText}>IMG</Text>;
@@ -302,10 +334,11 @@ export default function HU10EditarEliminarPortafolio() {
                 <TouchableOpacity
                   style={styles.uploadButton}
                   onPress={seleccionarNuevoArchivo}
+                  disabled={procesando}
                 >
                   <Text style={styles.uploadIcon}>↑</Text>
                   <Text style={styles.uploadText}>
-                    Agregar imágenes o documentos
+                    {procesando ? "Subiendo archivo..." : "Agregar imágenes o documentos"}
                   </Text>
                 </TouchableOpacity>
 
@@ -335,13 +368,20 @@ export default function HU10EditarEliminarPortafolio() {
                 Formatos permitidos: JPG, PNG, PDF
               </Text>
 
-              <TouchableOpacity style={styles.saveButton} onPress={guardarCambios}>
-                <Text style={styles.saveButtonText}>Guardar cambios</Text>
+              <TouchableOpacity
+                style={[styles.saveButton, procesando && styles.disabledButton]}
+                onPress={guardarCambios}
+                disabled={procesando}
+              >
+                <Text style={styles.saveButtonText}>
+                  {procesando ? "Guardando..." : "Guardar cambios"}
+                </Text>
               </TouchableOpacity>
 
               <TouchableOpacity
                 style={styles.deleteLargeButton}
                 onPress={() => editandoId && confirmarEliminar(editandoId)}
+                disabled={procesando}
               >
                 <Text style={styles.deleteLargeText}>Eliminar trabajo</Text>
               </TouchableOpacity>
@@ -393,7 +433,12 @@ export default function HU10EditarEliminarPortafolio() {
               </Text>
             </View>
 
-            {items.length === 0 ? (
+            {cargando ? (
+              <View style={styles.loadingBox}>
+                <ActivityIndicator size="large" color="#003B73" />
+                <Text style={styles.loadingText}>Cargando portafolios...</Text>
+              </View>
+            ) : items.length === 0 ? (
               <View style={styles.emptyBox}>
                 <Text style={styles.emptyTitle}>No tienes trabajos</Text>
                 <Text style={styles.emptyText}>
@@ -417,7 +462,7 @@ export default function HU10EditarEliminarPortafolio() {
                     </Text>
 
                     <Text style={styles.portfolioItemFiles}>
-                      {item.archivos.length} archivo(s)
+                      {item.archivos?.length || 0} archivo(s)
                     </Text>
                   </View>
 
@@ -489,10 +534,10 @@ const styles = StyleSheet.create({
     width: 28,
   },
   content: {
-  paddingHorizontal: 24,
-  paddingTop: 18,
-  paddingBottom: 34,
-},
+    paddingHorizontal: 24,
+    paddingTop: 18,
+    paddingBottom: 34,
+  },
   logoBox: {
     alignItems: "center",
     marginTop: 18,
@@ -501,13 +546,13 @@ const styles = StyleSheet.create({
     width: 150,
     height: 72,
   },
-title: {
-  fontSize: 20,
-  fontWeight: "800",
-  color: "#003B73",
-  textAlign: "center",
-  marginTop: 14,
-},
+  title: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#003B73",
+    textAlign: "center",
+    marginTop: 14,
+  },
   subtitle: {
     fontSize: 13,
     color: "#6B7280",
@@ -634,6 +679,9 @@ title: {
     fontWeight: "900",
     fontSize: 15,
   },
+  disabledButton: {
+    opacity: 0.6,
+  },
   deleteLargeButton: {
     borderWidth: 1,
     borderColor: "#EF4444",
@@ -647,7 +695,6 @@ title: {
     fontWeight: "900",
     fontSize: 15,
   },
-
   portfolioCard: {
     backgroundColor: "#FFFFFF",
     borderRadius: 18,
@@ -849,6 +896,16 @@ title: {
     textAlign: "center",
     fontWeight: "900",
     color: "#1A4670",
+  },
+  loadingBox: {
+    padding: 24,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  loadingText: {
+    color: "#6B7280",
+    marginTop: 10,
+    fontWeight: "700",
   },
   emptyBox: {
     padding: 20,

@@ -1,12 +1,12 @@
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 
-export type EstadoSolicitud = "Pendiente" | "Aceptada" | "Rechazada";
+export type EstadoSolicitud = "pendiente" | "aceptada" | "rechazada";
 
 const colors: Record<EstadoSolicitud, { bg: string; fg: string }> = {
-  Pendiente: { bg: "#FEF3C7", fg: "#B45309" },
-  Aceptada: { bg: "#D1FAE5", fg: "#047857" },
-  Rechazada: { bg: "#FEE2E2", fg: "#B91C1C" },
+  pendiente: { bg: "#FEF3C7", fg: "#B45309" },
+  aceptada: { bg: "#D1FAE5", fg: "#047857" },
+  rechazada: { bg: "#FEE2E2", fg: "#B91C1C" },
 };
 
 interface Props {

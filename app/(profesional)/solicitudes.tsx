@@ -1,6 +1,7 @@
+import { supabase } from "@/lib/supabase";
 import { Ionicons } from "@expo/vector-icons";
-import { Stack, useRouter } from "expo-router";
-import React, { useMemo, useState } from "react";
+import { Stack, useFocusEffect, useRouter } from "expo-router";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   FlatList,
   SafeAreaView,
@@ -27,17 +28,23 @@ const COLORS = {
   avatarBg: "#E5E7EB",
 };
 
-type EstadoSolicitud = "Pendiente" | "Aceptada" | "Rechazada";
+type EstadoSolicitud = "pendiente" | "aceptada" | "rechazada";
 
 interface Solicitud {
   id: string;
-  nombre: string;
-  proyecto: string;
-  fecha: string;
+  cliente_id: string;
+  profesional_id: string;
   estado: EstadoSolicitud;
+  descripcion_problema: string;
+  fecha_solicitud: string;
+  actualizado_at: string;
+  proyecto: string;
+  perfiles: {
+    nombre_completo: string;
+  };
 }
 
-const SOLICITUDES_MOCK: Solicitud[] = [
+/*const SOLICITUDES_MOCK: Solicitud[] = [
   {
     id: "1",
     nombre: "María Fernández",
@@ -73,19 +80,27 @@ const SOLICITUDES_MOCK: Solicitud[] = [
     fecha: "3 de mayo de 2026",
     estado: "Pendiente",
   },
-];
+];*/
 
-const FILTROS = ["Todas", "Pendientes", "Aceptadas", "Rechazadas"] as const;
+const FILTROS = ["todas", "pendientes", "aceptadas", "rechazadas"] as const;
 type Filtro = (typeof FILTROS)[number];
 
-const estadoStyles: Record<
-  EstadoSolicitud,
-  { bg: string; color: string }
-> = {
-  Pendiente: { bg: COLORS.pendingBg, color: COLORS.pendingText },
-  Aceptada: { bg: COLORS.acceptedBg, color: COLORS.acceptedText },
-  Rechazada: { bg: COLORS.rejectedBg, color: COLORS.rejectedText },
+const estadoStyles: Record<EstadoSolicitud, { bg: string; color: string }> = {
+  pendiente: { bg: COLORS.pendingBg, color: COLORS.pendingText },
+  aceptada: { bg: COLORS.acceptedBg, color: COLORS.acceptedText },
+  rechazada: { bg: COLORS.rejectedBg, color: COLORS.rejectedText },
 };
+
+function formatearFecha(fechaIso: string): string {     
+    if (!fechaIso) return "";                             
+    const fecha = new Date(fechaIso.replace(" ", "T"));   
+    if (isNaN(fecha.getTime())) return fechaIso;          
+    return fecha.toLocaleDateString("es-ES", {            
+      day: "numeric",                                     
+    month: "long",                                      
+    year: "numeric",                                    
+  });                                                   
+}  
 
 function SolicitudCard({
   item,
@@ -102,9 +117,9 @@ function SolicitudCard({
       </View>
 
       <View style={styles.cardInfo}>
-        <Text style={styles.cardName}>{item.nombre}</Text>
+        <Text style={styles.cardName}>{item.perfiles.nombre_completo}</Text>
         <Text style={styles.cardProject}>{item.proyecto}</Text>
-        <Text style={styles.cardDate}>{item.fecha}</Text>
+        <Text style={styles.cardDate}>{formatearFecha(item.fecha_solicitud)}</Text>
       </View>
 
       <View style={styles.cardRight}>
@@ -126,17 +141,51 @@ function SolicitudCard({
 
 export default function SolicitudesProfesional() {
   const router = useRouter();
-  const [filtroActivo, setFiltroActivo] = useState<Filtro>("Todas");
+  const [filtroActivo, setFiltroActivo] = useState<Filtro>("todas");
 
-  const solicitudesFiltradas = useMemo(() => {
-    if (filtroActivo === "Todas") return SOLICITUDES_MOCK;
+  const [items, setItems] = useState<Solicitud[]>([]);
+  const [nombreCliente, setNombreCliente] = useState<string>("");
+  const [isLoading, setIsLoading] = useState(false);
+
+  /*const solicitudesFiltradas = useMemo(() => {
+    if (filtroActivo === "Todas") return items;
     const mapa: Record<Exclude<Filtro, "Todas">, EstadoSolicitud> = {
       Pendientes: "Pendiente",
       Aceptadas: "Aceptada",
       Rechazadas: "Rechazada",
     };
-    return SOLICITUDES_MOCK.filter((s) => s.estado === mapa[filtroActivo]);
+    return items.filter((s) => s.estado === mapa[filtroActivo]);
+  }, [filtroActivo]);*/
+
+  const solicitudesMostrar = useMemo(() => {
+    if (filtroActivo === "todas") return items;
+    const mapa: Record<Exclude<Filtro, "todas">, EstadoSolicitud> = {
+      pendientes: "pendiente",
+      aceptadas: "aceptada",
+      rechazadas: "rechazada",
+    };
+    return items.filter((s) => s.estado === mapa[filtroActivo]);
   }, [filtroActivo]);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchData();
+    }, [router])
+  );
+
+  async function fetchData() {
+    try {
+      setIsLoading(true);
+      const { data, error } = await supabase.from("solicitudes_servicio").select("*, perfiles (nombre_completo)");
+
+      if (error) throw error;
+      setItems(data || []);
+    } catch (error: any) {
+      console.error("Error obteniendo datos:", error.message);
+    } finally {
+      setIsLoading(false);
+    }
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -182,7 +231,7 @@ export default function SolicitudesProfesional() {
         </ScrollView>
 
         <FlatList
-          data={solicitudesFiltradas}
+          data={solicitudesMostrar}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => (
             <SolicitudCard

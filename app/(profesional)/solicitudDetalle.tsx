@@ -3,10 +3,12 @@ import { ConfirmacionModal } from "@/components/solicitud/ConfirmacionModal";
 import { InfoSection } from "@/components/solicitud/InfoSection";
 import { ProfileCard } from "@/components/solicitud/ProfileCard";
 import { EstadoSolicitud } from "@/components/solicitud/StatusBadge";
+import { supabase } from "@/lib/supabase";
 import { Ionicons } from "@expo/vector-icons";
-import { Stack, useRouter } from "expo-router";
-import React, { useState } from "react";
+import { Stack, useLocalSearchParams, useRouter } from "expo-router";
+import React, { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -28,6 +30,25 @@ const COLORS = {
   dangerBg: "#FEE2E2",
 };
 
+interface Solicitud {
+  id: string;
+  cliente_id: string;
+  profesional_id: string;
+  estado: EstadoSolicitud;
+  descripcion_problema: string;
+  fecha_solicitud: string;
+  actualizado_at: string;
+  proyecto: string;
+  presupuesto: string;
+  fecha_estimada: string;
+  descripcion_de_rechazo: string | null;
+  fecha_aceptada_rechazada: string | null;
+  perfiles: {
+    ubicacion: string;
+    nombre_completo: string;
+  };
+}
+
 const SOLICITUD_MOCK = {
   cliente: {
     nombre: "María Fernández",
@@ -41,21 +62,108 @@ const SOLICITUD_MOCK = {
   archivos: [{ nombre: "requisitos_proyecto.pdf" }],
 };
 
+const formatearFecha = (fechaStr: string, locale: string = 'es-ES'): string => {
+  const fecha = new Date(`${fechaStr}T00:00:00`);
+  if (isNaN(fecha.getTime())) {
+    return 'Fecha no válida';
+  }
+  const opciones: Intl.DateTimeFormatOptions = {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  };
+  return new Intl.DateTimeFormat(locale, opciones).format(fecha);
+}; 
+
 export default function SolicitudDetalle() {
   const router = useRouter();
-  const [estado, setEstado] = useState<EstadoSolicitud>("Pendiente");
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const [estado, setEstado] = useState<EstadoSolicitud>("pendiente");
   const [modalAceptar, setModalAceptar] = useState(false);
   const [modalRechazar, setModalRechazar] = useState(false);
+  const [motivoRechazo, setMotivoRechazo] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
-  const confirmarAceptar = () => {
-    setModalAceptar(false);
-    setEstado("Aceptada");
+  const [items, setItems] = useState<Solicitud | null>(null);
+  const [fechaAceptacionRechazo, setFechaAceptacionRechazo] = useState<string | null>(null);
+
+
+  useEffect(() => {
+      if (id) fetchData();
+    }, [id, estado]);
+
+  async function fetchData() {
+    try {
+      setIsLoading(true);
+      const [{ data, error }] = await Promise.all([
+        supabase
+          .from("solicitudes_servicio")
+          .select("*, perfiles (nombre_completo, ubicacion)")
+          .eq("id", id)
+          .single(),
+        new Promise((resolve) => setTimeout(resolve, 1000)),
+      ]);
+      setEstado(data?.estado || "pendiente");
+      if (error) throw error;
+      setItems(data || null);
+      console.log("Datos obtenidos para id:", items);
+    } catch (error: any) {
+      console.error("Error obteniendo datos:", error.message);
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  const confirmarAceptar = async () => {
+    try {
+      const { error } = await supabase
+        .from("solicitudes_servicio")
+        .update({ estado: "aceptada", fecha_aceptada_rechazada: new Date().toISOString()})
+        .eq("id", id);
+        setEstado("aceptada");
+      if (error) throw error;
+    }
+    catch (error: any) {
+      console.error("Error actualizando estado:", error.message);
+    }
+    finally {
+      setModalAceptar(false);
+    }
   };
 
-  const confirmarRechazar = () => {
-    setModalRechazar(false);
-    setEstado("Rechazada");
+  const confirmarRechazar = async () => {
+    try {
+      const { error } = await supabase
+        .from("solicitudes_servicio")
+        .update({
+          estado: "rechazada",
+          descripcion_de_rechazo: motivoRechazo,
+          fecha_aceptada_rechazada: new Date().toISOString(),
+        })
+        .eq("id", id);
+        setEstado("rechazada");
+      if (error) throw error;
+    }
+    catch (error: any) {
+      console.error("Error actualizando estado:", error.message);
+    }
+    finally {
+      setModalRechazar(false);
+      setMotivoRechazo("");
+    }
   };
+
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={COLORS.primaryBlue} />
+          <Text style={styles.loadingText}>Cargando solicitud...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -84,21 +192,21 @@ export default function SolicitudDetalle() {
         <Text style={styles.title}>Detalle de solicitud</Text>
 
         <ProfileCard
-          nombre={SOLICITUD_MOCK.cliente.nombre}
-          rol={SOLICITUD_MOCK.cliente.rol}
-          estado={estado}
+          nombre={items?.perfiles.nombre_completo || "Cargando..."}
+          rol={items?.perfiles.ubicacion || "Cargando..."}
+          estado={items?.estado || "pendiente"}
         />
 
         <InfoSection
           label="Servicio solicitado"
-          value={SOLICITUD_MOCK.servicio}
+          value={items?.proyecto || "Cargando..."}
         />
-        <InfoSection label="Descripción" value={SOLICITUD_MOCK.descripcion} />
+        <InfoSection label="Descripción" value={items?.descripcion_problema || "Cargando..."} />
         <InfoSection
           label="Presupuesto estimado"
-          value={SOLICITUD_MOCK.presupuesto}
+          value={items?.presupuesto+" $" || "Cargando..."}
         />
-        <InfoSection label="Fecha estimada" value={SOLICITUD_MOCK.fecha} />
+        <InfoSection label="Fecha estimada" value={formatearFecha(items?.fecha_estimada || "")} />
 
         <InfoSection label="Archivos adjuntos">
           {SOLICITUD_MOCK.archivos.map((a) => (
@@ -106,7 +214,7 @@ export default function SolicitudDetalle() {
           ))}
         </InfoSection>
 
-        {estado === "Pendiente" && (
+        {estado === "pendiente" && (
           <View style={styles.actions}>
             <TouchableOpacity
               style={styles.btnAceptar}
@@ -128,7 +236,7 @@ export default function SolicitudDetalle() {
           </View>
         )}
 
-        {estado === "Aceptada" && (
+        {estado === "aceptada" && (
           <View
             style={[styles.banner, { backgroundColor: COLORS.successBg }]}
           >
@@ -138,16 +246,16 @@ export default function SolicitudDetalle() {
               color={COLORS.successText}
             />
             <Text style={[styles.bannerText, { color: COLORS.successText }]}>
-              Solicitud aceptada el {SOLICITUD_MOCK.fecha}
+              Solicitud aceptada el {formatearFecha(items?.fecha_aceptada_rechazada || "")}
             </Text>
           </View>
         )}
 
-        {estado === "Rechazada" && (
+        {estado === "rechazada" && (
           <View style={[styles.banner, { backgroundColor: COLORS.dangerBg }]}>
             <Ionicons name="close-circle" size={20} color={COLORS.danger} />
             <Text style={[styles.bannerText, { color: COLORS.danger }]}>
-              Solicitud rechazada el {SOLICITUD_MOCK.fecha}
+              Solicitud rechazada el {formatearFecha(items?.fecha_aceptada_rechazada || "")}
             </Text>
           </View>
         )}
@@ -171,7 +279,15 @@ export default function SolicitudDetalle() {
         confirmColor={COLORS.danger}
         confirmLabel="Rechazar"
         onConfirm={confirmarRechazar}
-        onCancel={() => setModalRechazar(false)}
+        onCancel={() => {
+          setModalRechazar(false);
+          setMotivoRechazo("");
+        }}
+        withInput
+        inputValue={motivoRechazo}
+        onChangeInputValue={setMotivoRechazo}
+        inputPlaceholder="Describe la razón del rechazo"
+        inputMaxLength={50}
       />
     </SafeAreaView>
   );
@@ -179,6 +295,17 @@ export default function SolicitudDetalle() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 12,
+  },
+  loadingText: {
+    fontSize: 14,
+    color: COLORS.textGray,
+    fontWeight: "600",
+  },
   header: {
     backgroundColor: COLORS.primaryBlue,
     height: 90,

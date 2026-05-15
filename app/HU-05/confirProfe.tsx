@@ -1,20 +1,19 @@
 import { supabase } from "@/lib/supabase";
-import { FontAwesome, Ionicons } from "@expo/vector-icons";
+import { FontAwesome, Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Dimensions,
-  Image,
   ScrollView,
   Text,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 const logoRedProfesional = require("@/assets/images/RedProfesional-removebg.png");
-
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 const COLORS = {
@@ -28,62 +27,95 @@ const COLORS = {
 
 export default function ConfirProfeScreen() {
   const router = useRouter();
-  const { nombre, titulo, anios } = useLocalSearchParams();
+  // RECIBIMOS TODOS LOS PARÁMETROS COORDINADOS
+  const {
+    nombre,
+    especialidad,
+    experiencia,
+    ubicacion,
+    descripcion,
+    telefono,
+  } = useLocalSearchParams();
   const [isSaving, setIsSaving] = useState(false);
 
   const handleNextStep = async () => {
     try {
       setIsSaving(true);
 
-      // 1. Obtener el usuario actual
       const {
         data: { user },
       } = await supabase.auth.getUser();
-
       if (!user) throw new Error("No se encontró una sesión activa.");
 
-      // 2. Actualizar el rol y nombre en la tabla 'perfiles'
+      // 1. Actualizar 'perfiles' con el Rol y la Ubicación (Ciudad)
+      // Nota: Usamos 'ciudad' porque es lo que intentamos filtrar en el buscador
       const { error: perfilError } = await supabase
         .from("perfiles")
         .update({
           rol: "Profesional",
           nombre_completo: nombre,
+          ciudad: ubicacion,
+          telefono: telefono,
         })
         .eq("id", user.id);
 
       if (perfilError) throw perfilError;
 
-      // 3. Guardar la información técnica en 'profesionales_info'
-      // Nota: Usamos 'años_experiencia' como aparece en tu captura de Supabase
+      // 2. Guardar información técnica en 'profesionales_info'
       const { error: profeError } = await supabase
         .from("profesionales_info")
         .upsert({
           id: user.id,
-          titulo_especialidad: titulo,
-          años_experiencia: parseInt(anios as string) || 0, // Convertimos a número si es necesario
-          biografia: "", // Puedes dejarlo vacío o pedirlo después
-          aprobado: true, // Según tu esquema vi que tienes este campo
+          titulo_especialidad: especialidad,
+          años_experiencia: parseInt(experiencia as string) || 0,
+          biografia: descripcion,
+          aprobado: true,
         });
 
       if (profeError) throw profeError;
 
-      // 4. Si todo salió bien, navegar a la pantalla de éxito
+      // 3. Éxito
       router.push("/HU-05/asigProfe");
     } catch (error: any) {
       console.error("Error al guardar:", error.message);
       Alert.alert(
         "Error",
-        "No se pudo guardar la información: " + error.message,
+        "No se pudo completar el registro: " + error.message,
       );
     } finally {
       setIsSaving(false);
     }
   };
+
+  // Pequeño componente para mostrar los datos en la tarjeta
+  const InfoRow = ({ label, value, icon }: any) => (
+    <View style={{ marginBottom: 15 }}>
+      <View
+        style={{ flexDirection: "row", alignItems: "center", marginBottom: 4 }}
+      >
+        {icon}
+        <Text
+          style={{
+            fontWeight: "bold",
+            color: COLORS.textDarkBlue,
+            marginLeft: 8,
+          }}
+        >
+          {label}
+        </Text>
+      </View>
+      <Text style={{ fontSize: 16, color: "#333", paddingLeft: 28 }}>
+        {value || "No especificado"}
+      </Text>
+    </View>
+  );
+
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
       <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.primaryBlue }}>
         <View style={{ flex: 1, backgroundColor: COLORS.bgColor }}>
+          {/* Header */}
           <View
             style={{
               backgroundColor: COLORS.primaryBlue,
@@ -104,7 +136,7 @@ export default function ConfirProfeScreen() {
               <Text
                 style={{ color: "#FFFFFF", fontSize: 18, fontWeight: "600" }}
               >
-                Confirmar rol
+                Confirmar Registro
               </Text>
               <View style={{ width: 26 }} />
             </View>
@@ -112,8 +144,9 @@ export default function ConfirProfeScreen() {
 
           <ScrollView
             contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 40 }}
+            showsVerticalScrollIndicator={false}
           >
-            {/* Stepper */}
+            {/* Stepper Paso 3 */}
             <View
               style={{
                 flexDirection: "row",
@@ -122,88 +155,58 @@ export default function ConfirProfeScreen() {
                 marginVertical: 30,
               }}
             >
-              <View style={{ alignItems: "center" }}>
-                <View
-                  style={{
-                    width: 30,
-                    height: 30,
-                    borderRadius: 15,
-                    backgroundColor: "#D1D5DB",
-                    justifyContent: "center",
-                    alignItems: "center",
-                  }}
-                >
-                  <Text style={{ color: "#FFF" }}>1</Text>
-                </View>
+              <View
+                style={{
+                  width: 30,
+                  height: 30,
+                  borderRadius: 15,
+                  backgroundColor: "#D1D5DB",
+                  justifyContent: "center",
+                  alignItems: "center",
+                }}
+              >
+                <Text style={{ color: "#FFF" }}>1</Text>
               </View>
               <View
                 style={{
-                  width: 40,
+                  width: 30,
                   height: 2,
                   backgroundColor: "#D1D5DB",
-                  marginHorizontal: 10,
+                  marginHorizontal: 8,
                 }}
               />
-              <View style={{ alignItems: "center" }}>
-                <View
-                  style={{
-                    width: 30,
-                    height: 30,
-                    borderRadius: 15,
-                    backgroundColor: "#D1D5DB",
-                    justifyContent: "center",
-                    alignItems: "center",
-                  }}
-                >
-                  <Text style={{ color: "#FFF" }}>2</Text>
-                </View>
+              <View
+                style={{
+                  width: 30,
+                  height: 30,
+                  borderRadius: 15,
+                  backgroundColor: "#D1D5DB",
+                  justifyContent: "center",
+                  alignItems: "center",
+                }}
+              >
+                <Text style={{ color: "#FFF" }}>2</Text>
               </View>
               <View
                 style={{
-                  width: 40,
+                  width: 30,
                   height: 2,
                   backgroundColor: "#D1D5DB",
-                  marginHorizontal: 10,
+                  marginHorizontal: 8,
                 }}
               />
-              <View style={{ alignItems: "center" }}>
-                <View
-                  style={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: 18,
-                    backgroundColor: COLORS.accentGold,
-                    justifyContent: "center",
-                    alignItems: "center",
-                  }}
-                >
-                  <Text style={{ color: "#FFF", fontWeight: "bold" }}>3</Text>
-                </View>
-                <Text
-                  style={{
-                    color: COLORS.accentGold,
-                    fontWeight: "bold",
-                    fontSize: 12,
-                    marginTop: 5,
-                  }}
-                >
-                  Confirmar
-                </Text>
-              </View>
-            </View>
-
-            {/* Logo */}
-            <View
-              style={{ alignItems: "center", marginBottom: 1, marginTop: -1 }}
-            >
-              <Image
-                source={logoRedProfesional}
+              <View
                 style={{
-                  width: SCREEN_WIDTH * 0.6, // Ajusta el ancho al 70% de la pantalla
-                  height: 120, // Altura fija inicial
+                  width: 36,
+                  height: 36,
+                  borderRadius: 18,
+                  backgroundColor: COLORS.accentGold,
+                  justifyContent: "center",
+                  alignItems: "center",
                 }}
-                resizeMode="contain"
-              />
+              >
+                <Text style={{ color: "#FFF", fontWeight: "bold" }}>3</Text>
+              </View>
             </View>
 
             <View style={{ alignItems: "center", marginBottom: 20 }}>
@@ -212,29 +215,27 @@ export default function ConfirProfeScreen() {
                   fontSize: 24,
                   fontWeight: "900",
                   color: COLORS.textDarkBlue,
-                  marginTop: 15,
                 }}
               >
-                Confirma tu información
+                ¡Casi listo!
               </Text>
               <Text
                 style={{
                   color: COLORS.textBodyGrey,
                   textAlign: "center",
-                  marginTop: 10,
+                  marginTop: 5,
                 }}
               >
-                Revisa los datos antes de completar tu registro.
+                Verifica que todo esté correcto.
               </Text>
             </View>
 
-            {/* Tarjeta de Datos Profesional */}
+            {/* Tarjeta de Resumen */}
             <View
               style={{
                 backgroundColor: COLORS.cardBg,
                 borderRadius: 20,
-                padding: 25,
-                marginTop: 10,
+                padding: 20,
               }}
             >
               <View
@@ -246,69 +247,104 @@ export default function ConfirProfeScreen() {
               >
                 <View
                   style={{
-                    width: 50,
-                    height: 50,
-                    borderRadius: 25,
+                    width: 44,
+                    height: 44,
+                    borderRadius: 22,
                     backgroundColor: COLORS.accentGold,
                     justifyContent: "center",
                     alignItems: "center",
-                    marginRight: 15,
+                    marginRight: 12,
                   }}
                 >
-                  <FontAwesome name="briefcase" size={22} color="#FFFFFF" />
+                  <FontAwesome name="briefcase" size={20} color="#FFFFFF" />
                 </View>
-                <View>
-                  <Text style={{ color: COLORS.textBodyGrey, fontSize: 14 }}>
-                    Rol
-                  </Text>
-                  <Text
-                    style={{
-                      fontSize: 20,
-                      fontWeight: "bold",
-                      color: COLORS.textDarkBlue,
-                    }}
-                  >
-                    Profesional
-                  </Text>
-                </View>
+                <Text
+                  style={{
+                    fontSize: 18,
+                    fontWeight: "bold",
+                    color: COLORS.textDarkBlue,
+                  }}
+                >
+                  Perfil Profesional
+                </Text>
               </View>
 
-              <View style={{ marginBottom: 15 }}>
+              <InfoRow
+                label="Nombre"
+                value={nombre}
+                icon={
+                  <Ionicons
+                    name="person-outline"
+                    size={18}
+                    color={COLORS.primaryBlue}
+                  />
+                }
+              />
+              <InfoRow
+                label="Especialidad"
+                value={especialidad}
+                icon={
+                  <MaterialIcons
+                    name="work-outline"
+                    size={18}
+                    color={COLORS.primaryBlue}
+                  />
+                }
+              />
+              <InfoRow
+                label="Experiencia"
+                value={experiencia}
+                icon={
+                  <Ionicons
+                    name="ribbon-outline"
+                    size={18}
+                    color={COLORS.primaryBlue}
+                  />
+                }
+              />
+              <InfoRow
+                label="Ubicación"
+                value={ubicacion}
+                icon={
+                  <Ionicons
+                    name="location-outline"
+                    size={18}
+                    color={COLORS.primaryBlue}
+                  />
+                }
+              />
+              <InfoRow
+                label="Teléfono"
+                value={telefono}
+                icon={
+                  <Ionicons
+                    name="call-outline"
+                    size={18}
+                    color={COLORS.primaryBlue}
+                  />
+                }
+              />
+
+              <View style={{ marginTop: 5 }}>
                 <Text
-                  style={{ fontWeight: "bold", color: COLORS.textDarkBlue }}
+                  style={{
+                    fontWeight: "bold",
+                    color: COLORS.textDarkBlue,
+                    marginBottom: 5,
+                  }}
                 >
-                  Nombre
+                  Descripción:
                 </Text>
                 <Text
                   style={{
-                    fontSize: 16,
-                    color: "#333",
-                    marginTop: 5,
+                    color: "#4B5563",
+                    fontStyle: "italic",
+                    backgroundColor: "#FFF",
+                    padding: 10,
+                    borderRadius: 10,
                   }}
                 >
-                  {nombre}
-                </Text>
-              </View>
-
-              <View style={{ marginBottom: 15 }}>
-                <Text
-                  style={{ fontWeight: "bold", color: COLORS.textDarkBlue }}
-                >
-                  Especialidad
-                </Text>
-                <Text style={{ fontSize: 16, color: "#333", marginTop: 5 }}>
-                  {titulo}
-                </Text>
-              </View>
-
-              <View>
-                <Text
-                  style={{ fontWeight: "bold", color: COLORS.textDarkBlue }}
-                >
-                  Experiencia
-                </Text>
-                <Text style={{ fontSize: 16, color: "#333", marginTop: 5 }}>
-                  {anios}
+                  "{descripcion || "Sin descripción"}"
                 </Text>
               </View>
             </View>
@@ -326,7 +362,7 @@ export default function ConfirProfeScreen() {
               <Text
                 style={{ color: "#4285F4", fontWeight: "bold", marginLeft: 8 }}
               >
-                Editar información
+                Editar datos
               </Text>
             </TouchableOpacity>
 
@@ -337,15 +373,20 @@ export default function ConfirProfeScreen() {
                 borderRadius: 15,
                 alignItems: "center",
                 marginTop: 30,
+                elevation: 3,
               }}
               onPress={handleNextStep}
               disabled={isSaving}
             >
-              <Text
-                style={{ color: "#FFFFFF", fontSize: 18, fontWeight: "bold" }}
-              >
-                {isSaving ? "Guardando..." : "Confirmar y crear cuenta"}
-              </Text>
+              {isSaving ? (
+                <ActivityIndicator color="#FFF" />
+              ) : (
+                <Text
+                  style={{ color: "#FFFFFF", fontSize: 18, fontWeight: "bold" }}
+                >
+                  Finalizar Registro
+                </Text>
+              )}
             </TouchableOpacity>
           </ScrollView>
         </View>

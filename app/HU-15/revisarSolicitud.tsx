@@ -1,0 +1,232 @@
+import { Ionicons } from "@expo/vector-icons";
+import { Stack, useLocalSearchParams, useRouter } from "expo-router";
+import React from "react";
+import {
+    Dimensions,
+    Image,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
+
+const COLORS = {
+  primaryBlue: "#123F78",
+  accentGold: "#EAB308",
+  textMain: "#123F78", // Azul oscuro para títulos según imagen
+  textBody: "#1F2937",
+  textSecondary: "#6B7280",
+  bgLight: "#F9FAFB",
+  white: "#FFFFFF",
+  cardBorder: "#E5E7EB",
+};
+
+export default function RevisarSolicitud() {
+  const router = useRouter();
+  // Recibimos los datos enviados desde el formulario anterior
+  const {
+    id,
+    nombre,
+    especialidad,
+    ciudad,
+    avatar,
+    servicio,
+    descripcion,
+    presupuesto,
+    fecha,
+  } = useLocalSearchParams();
+
+  const handleSendRequest = () => {
+    // Aquí conectarías con Supabase para insertar en la tabla 'solicitudes'
+    console.log("Solicitud enviada oficialmente");
+    router.push("/HU-05/asigProfe"); // Reutilizamos tu pantalla de éxito
+  };
+
+  return (
+    <View style={styles.mainContainer}>
+      <Stack.Screen options={{ headerShown: false }} />
+
+      {/* HEADER AZUL OSCURO */}
+      <View style={styles.blueHeader}>
+        <SafeAreaView edges={["top"]}>
+          <View style={styles.headerContent}>
+            <TouchableOpacity onPress={() => router.back()}>
+              <Ionicons name="arrow-back" size={26} color="white" />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>RedProfesional</Text>
+            <TouchableOpacity>
+              <Ionicons name="notifications-outline" size={24} color="white" />
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      </View>
+
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
+        <Text style={styles.mainTitle}>Revisar solicitud</Text>
+
+        {/* SECCIÓN PROFESIONAL */}
+        <Text style={styles.sectionLabel}>Profesional</Text>
+        <View style={styles.profeCard}>
+          <Image
+            source={{
+              uri: (avatar as string) || "https://via.placeholder.com/150",
+            }}
+            style={styles.avatar}
+          />
+          <View style={styles.profeInfo}>
+            <Text style={styles.profeName}>{nombre || "Carlos Mendoza"}</Text>
+            <Text style={styles.profeTitle}>
+              {especialidad || "Desarrollador Web"}
+            </Text>
+            <View style={styles.row}>
+              <Ionicons name="location" size={14} color={COLORS.primaryBlue} />
+              <Text style={styles.locText}>{ciudad || "Cochabamba"}</Text>
+            </View>
+            <View style={styles.row}>
+              <Ionicons name="star" size={14} color={COLORS.accentGold} />
+              <Text style={styles.ratingText}>
+                4.8 <Text style={styles.reviewCount}>(32)</Text>
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        {/* RESUMEN DE LA SOLICITUD */}
+        <Text style={styles.mainTitle}>Resumen de la solicitud</Text>
+
+        <View style={styles.detailGroup}>
+          <Text style={styles.detailLabel}>Servicio solicitado</Text>
+          <Text style={styles.detailValue}>
+            {servicio || "Desarrollo de página web"}
+          </Text>
+        </View>
+
+        <View style={styles.detailGroup}>
+          <Text style={styles.detailLabel}>Descripción</Text>
+          <Text style={styles.detailValue}>
+            {descripcion || "No se proporcionó una descripción."}
+          </Text>
+        </View>
+
+        <View style={styles.detailGroup}>
+          <Text style={styles.detailLabel}>Presupuesto estimado</Text>
+          <Text style={styles.detailValue}>
+            Bs. {presupuesto || "No definido"}
+          </Text>
+        </View>
+
+        <View style={styles.detailGroup}>
+          <Text style={styles.detailLabel}>Fecha estimada</Text>
+          <Text style={styles.detailValue}>{fecha || "A convenir"}</Text>
+        </View>
+
+        {/* BOTONES DE ACCIÓN */}
+        <View style={styles.actionContainer}>
+          <TouchableOpacity style={styles.btnSend} onPress={handleSendRequest}>
+            <Text style={styles.btnSendText}>Enviar solicitud</Text>
+            <Ionicons
+              name="send"
+              size={18}
+              color="white"
+              style={styles.sendIcon}
+            />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.btnEdit}
+            onPress={() => router.back()}
+          >
+            <Text style={styles.btnEditText}>Editar información</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  mainContainer: { flex: 1, backgroundColor: COLORS.white },
+  blueHeader: { backgroundColor: COLORS.primaryBlue, paddingBottom: 15 },
+  headerContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+  },
+  headerTitle: { color: "white", fontSize: 18, fontWeight: "bold" },
+
+  scrollContent: { paddingHorizontal: 20, paddingBottom: 40 },
+  mainTitle: {
+    fontSize: 22,
+    fontWeight: "bold",
+    color: COLORS.textMain,
+    marginTop: 25,
+    marginBottom: 20,
+  },
+  sectionLabel: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: COLORS.textMain,
+    marginBottom: 12,
+  },
+
+  // Tarjeta Profesional
+  profeCard: {
+    flexDirection: "row",
+    backgroundColor: COLORS.white,
+    borderRadius: 18,
+    padding: 15,
+    borderWidth: 1,
+    borderColor: COLORS.cardBorder,
+    alignItems: "center",
+    marginBottom: 30,
+  },
+  avatar: { width: 85, height: 85, borderRadius: 42.5 },
+  profeInfo: { marginLeft: 15, flex: 1 },
+  profeName: { fontSize: 18, fontWeight: "bold", color: COLORS.textMain },
+  profeTitle: { fontSize: 14, color: COLORS.textSecondary, marginVertical: 2 },
+  row: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 3 },
+  locText: { fontSize: 13, color: COLORS.textSecondary },
+  ratingText: { fontSize: 13, fontWeight: "bold", color: COLORS.textBody },
+  reviewCount: { fontWeight: "normal", color: COLORS.textSecondary },
+
+  // Detalles de Solicitud
+  detailGroup: { marginBottom: 22 },
+  detailLabel: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: COLORS.textMain,
+    marginBottom: 6,
+  },
+  detailValue: { fontSize: 16, color: COLORS.textBody, lineHeight: 24 },
+
+  // Acciones
+  actionContainer: { marginTop: 15, gap: 12 },
+  btnSend: {
+    backgroundColor: COLORS.primaryBlue,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 18,
+    borderRadius: 14,
+  },
+  btnSendText: { color: "white", fontSize: 16, fontWeight: "bold" },
+  sendIcon: { marginLeft: 8, transform: [{ rotate: "-45deg" }] },
+
+  btnEdit: {
+    backgroundColor: COLORS.white,
+    borderWidth: 1.5,
+    borderColor: "#D1D5DB",
+    paddingVertical: 18,
+    borderRadius: 14,
+    alignItems: "center",
+  },
+  btnEditText: { color: COLORS.textMain, fontSize: 16, fontWeight: "bold" },
+});

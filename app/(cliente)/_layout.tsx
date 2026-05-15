@@ -1,54 +1,58 @@
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons, Octicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
 import React from "react";
+
+const COLORS = {
+  primaryBlue: "#123F78", // Tu azul corporativo
+  inactiveGrey: "#9CA3AF",
+  white: "#ffffff",
+  border: "#F3F4F6",
+};
 
 export default function ClienteLayout() {
   return (
     <Tabs
       screenOptions={{
-        // Colores de la imagen
-        tabBarActiveTintColor: "#2563EB", // Azul activo
-        tabBarInactiveTintColor: "#6B7280", // Gris inactivo
+        // Color activo ajustado a tu azul principal
+        tabBarActiveTintColor: COLORS.primaryBlue,
+        tabBarInactiveTintColor: COLORS.inactiveGrey,
         tabBarStyle: {
-          backgroundColor: "#ffffff",
-          height: 70,
-          paddingBottom: 12,
-          paddingTop: 8,
+          backgroundColor: COLORS.white,
+          height: 75, // Un poco más de altura para mejor ergonomía
+          paddingBottom: 15,
+          paddingTop: 10,
           borderTopWidth: 1,
-          borderTopColor: "#F3F4F6",
-          // Sombra para dar profundidad sin ser flotante
-          elevation: 10,
+          borderTopColor: COLORS.border,
+          elevation: 15,
           shadowColor: "#000",
-          shadowOffset: { width: 0, height: -2 },
-          shadowOpacity: 0.05,
-          shadowRadius: 3,
+          shadowOffset: { width: 0, height: -3 },
+          shadowOpacity: 0.1,
+          shadowRadius: 5,
         },
         tabBarLabelStyle: {
-          fontSize: 12,
-          fontWeight: "500",
+          fontSize: 11, // Tamaño refinado para que los 5 iconos quepan bien
+          fontWeight: "600",
         },
         headerStyle: {
-          backgroundColor: "#1A4670",
+          backgroundColor: COLORS.primaryBlue,
         },
         headerTintColor: "#fff",
         headerTitleAlign: "center",
       }}
     >
+      {/* 1. INICIO */}
       <Tabs.Screen
         name="index"
         options={{
           title: "Inicio",
           headerShown: false,
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons
-              name={focused ? "home" : "home-outline"}
-              size={24}
-              color={color}
-            />
+            <Octicons name="home" size={24} color={color} />
           ),
         }}
       />
 
+      {/* 2. BUSCAR */}
       <Tabs.Screen
         name="buscar"
         options={{
@@ -57,20 +61,38 @@ export default function ClienteLayout() {
           tabBarIcon: ({ color, focused }) => (
             <Ionicons
               name={focused ? "search" : "search-outline"}
-              size={24}
+              size={26}
               color={color}
             />
           ),
         }}
       />
 
+      {/* 3. SOLICITUDES (Implementado en el centro) */}
+      <Tabs.Screen
+        name="solicitudes"
+        options={{
+          title: "Solicitudes",
+          headerShown: false,
+          tabBarIcon: ({ color, focused }) => (
+            <MaterialCommunityIcons
+              name={focused ? "file-document" : "file-document-outline"}
+              size={26}
+              color={color}
+            />
+          ),
+        }}
+      />
+
+      {/* 4. MENSAJES */}
       <Tabs.Screen
         name="mensajes"
         options={{
           title: "Mensajes",
+          headerShown: false,
           tabBarIcon: ({ color, focused }) => (
             <Ionicons
-              name={focused ? "folder" : "folder-outline"}
+              name={focused ? "chatbubble-ellipses" : "chatbubble-outline"}
               size={24}
               color={color}
             />
@@ -78,6 +100,7 @@ export default function ClienteLayout() {
         }}
       />
 
+      {/* 5. PERFIL */}
       <Tabs.Screen
         name="perfil"
         options={{

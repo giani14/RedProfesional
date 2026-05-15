@@ -73,6 +73,7 @@ export default function Index() {
 
   // Si no hay sesión, al Login
   if (!session) {
+    //return <Redirect href="/HU-00/Bienvenida" />;
     return <Redirect href="/HU-02/login" />;
   }
 

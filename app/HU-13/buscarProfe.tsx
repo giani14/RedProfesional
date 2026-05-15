@@ -3,15 +3,15 @@ import { Ionicons } from "@expo/vector-icons";
 import { router, Stack } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
-  FlatList,
-  Image,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    FlatList,
+    Image,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context"; // <--- ESTA ES LA CORRECTA
 // Mantengo tus constantes de diseño del Login
@@ -95,7 +95,7 @@ export default function BuscarProfesionales() {
         style={styles.verPerfilButton}
         onPress={() =>
           router.push({
-            pathname: "/HU-13/verPerfilProfe",
+            pathname: "/(cliente)/perfil",
             params: { id: item.id },
           })
         }

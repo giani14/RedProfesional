@@ -63,6 +63,20 @@ export default function ProfesionalLayout() {
       />
 
       <Tabs.Screen
+        name="solicitudes"
+        options={{
+          title: "Solicitudes",
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons
+              name={focused ? "list-circle" : "list-circle-outline"}
+              size={24}
+              color={color}
+            />
+          ),
+        }}
+      />
+
+      <Tabs.Screen
         name="mensajes"
         options={{
           title: "Mensajes",
@@ -73,6 +87,14 @@ export default function ProfesionalLayout() {
               color={color}
             />
           ),
+        }}
+      />
+
+      <Tabs.Screen
+        name="solicitudDetalle"
+        options={{
+          href: null,
+          headerShown: false,
         }}
       />
 

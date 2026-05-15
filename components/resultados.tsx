@@ -1,18 +1,18 @@
 import { supabase } from "@/lib/supabase";
 import { Ionicons } from "@expo/vector-icons";
-import { Href, useLocalSearchParams, useRouter } from "expo-router";
-import React, { useCallback, useEffect, useState } from "react";
+import { Href, Stack, useLocalSearchParams, useRouter } from "expo-router";
+import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
-  Image,
-  Platform,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Image,
+    Platform,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 
 interface Profesional {
@@ -26,57 +26,76 @@ interface Profesional {
   descripcion: string;
 }
 
-export default function BuscarClienteScreen() {
+export default function ResultadosScreen() {
   const router = useRouter();
-  // Recibe parámetros si el usuario presionó una categoría rápida desde el Inicio
-  const { query } = useLocalSearchParams<{ query?: string }>();
+  const { q } = useLocalSearchParams<{ q?: string }>();
   
-  const [busqueda, setBusqueda] = useState(query || "");
-  const [activeSearchTerm, setActiveSearchTerm] = useState(query || "");
-  const [chipActivo, setChipActivo] = useState<string | null>(query || null);
+  const [busqueda, setBusqueda] = useState(q || "");
+  const [chipActivo, setChipActivo] = useState<string | null>(q || null);
   const [resultados, setResultados] = useState<Profesional[]>([]);
   const [loading, setLoading] = useState(true);
-  
-  const categorias = ["Electricista", "Instalaciones", "Mantenimiento", "Carpintería"];
+  const categorias = ["Electricista", "Instalaciones", "Mantenimiento"];
 
   useEffect(() => {
-    if (query && categorias.includes(query)) {
-      setBusqueda(query);
-      setChipActivo(query);
+    if (q) {
+      setBusqueda(q as string);
+      if (categorias.includes(q as string)) {
+        setChipActivo(q as string);
+      }
     }
-  }, [query]);
+  }, [q]);
 
-  const fetchResultados = useCallback(async (searchTerm: string) => {
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchResultados(busqueda);
+    }, 400); // 400ms debounce para búsqueda en tiempo real
+    return () => clearTimeout(timer);
+  }, [busqueda]);
+
+  const fetchResultados = async (searchTerm: string) => {
     setLoading(true);
     try {
-      // Limpiamos espacios extra para una búsqueda predictiva exacta
-      const cleanTerm = searchTerm.trim().replace(/\s+/g, " ");
-      
-      // Guardamos el término activo para saber si debemos mostrar la "Mejor opción" o no
-      setActiveSearchTerm(cleanTerm);
-      const lowerTerm = cleanTerm.toLowerCase();
-
-      // Obtenemos a todos los profesionales activos para evitar crashes
-      // de columnas inexistentes en Supabase y poder filtrarlos con total precisión.
-      const { data, error } = await supabase
+      let queryBuilder = supabase
         .from("perfiles")
         .select("*")
         .eq("rol", "Profesional")
         .eq("estado", "activo");
 
-      if (error) throw error;
+      // 1. Búsqueda REAL en Supabase (insensible a mayúsculas/minúsculas)
+      if (searchTerm.trim() !== "") {
+        queryBuilder = queryBuilder.or(`nombre_completo.ilike.%${searchTerm}%,especialidad.ilike.%${searchTerm}%`);
+      }
+
+      let { data, error } = await queryBuilder;
+
+      // 2. Manejo de errores: Si la columna 'especialidad' aún no existe en tu tabla perfiles (Código PostgreSQL 42703)
+      if (error && error.code === "42703") {
+        let fallbackQuery = supabase
+          .from("perfiles")
+          .select("*")
+          .eq("rol", "Profesional")
+          .eq("estado", "activo");
+          
+        if (searchTerm.trim() !== "") {
+          fallbackQuery = fallbackQuery.ilike("nombre_completo", `%${searchTerm}%`);
+        }
+        
+        const fallbackRes = await fallbackQuery;
+        data = fallbackRes.data;
+        if (fallbackRes.error) throw fallbackRes.error;
+      } else if (error) {
+        throw error;
+      }
 
       const defaultSpecialties = ["Electricista", "Plomería", "Mantenimiento", "Carpintería"];
 
       let mappedData: Profesional[] = (data || []).map((item, index) => {
-        // Buscamos dinámicamente el campo real de tu base de datos
-        const especialidadReal = item.especialidad || item.profesion || item.categoria || item.oficio;
         const mockedSpecialty = defaultSpecialties[index % defaultSpecialties.length];
         return {
           id: item.id,
-          nombre_completo: item.nombre_completo || "Usuario",
+          nombre_completo: item.nombre_completo,
           avatar_url: item.avatar_url,
-          especialidad: especialidadReal || mockedSpecialty,
+          especialidad: item.especialidad || mockedSpecialty,
           ubicacion: item.ubicacion || "Ubicación no especificada",
           calificacion: item.calificacion ?? 4.8,
           resenas: item.resenas ?? 24,
@@ -84,47 +103,23 @@ export default function BuscarClienteScreen() {
         };
       });
 
-      // FILTRADO ESTRICTO POR PREFIJO Y PALABRA
-      if (cleanTerm !== "") {
-        mappedData = mappedData.filter((p) => {
-          // Separamos en palabras para que detecte correctamente las iniciales
-          // (ej: si busca "E", encuentra "Electricista" pero descarta "Plomería")
-          const wordsName = p.nombre_completo.toLowerCase().split(/\s+/);
-          const wordsSpec = p.especialidad.toLowerCase().split(/\s+/);
-          
-          const matchName = wordsName.some((word) => word.startsWith(lowerTerm));
-          const matchSpec = wordsSpec.some((word) => word.startsWith(lowerTerm));
-          
-          return matchName || matchSpec;
-        });
+      // Si el sistema usó el fallback por la columna faltante, aplicamos un filtro local extra para garantizar 100% la funcionalidad
+      if (searchTerm.trim() !== "" && error && error.code === "42703") {
+        const lowerTerm = searchTerm.toLowerCase();
+        mappedData = mappedData.filter(
+          (p) => p.nombre_completo.toLowerCase().includes(lowerTerm) || p.especialidad.toLowerCase().includes(lowerTerm)
+        );
       }
 
-      // Ordenamiento inteligente para rankear al profesional "Mejor opción" en el inicio
-      mappedData.sort((a, b) => {
-        // 1. Mayor calificación (Rating)
-        if (b.calificacion !== a.calificacion) return b.calificacion - a.calificacion;
-        
-        // 2. Mayor cantidad de reseñas
-        if (b.resenas !== a.resenas) return b.resenas - a.resenas;
-        
-        // 3. Perfil completo (priorizamos a los que sí subieron avatar)
-        return (b.avatar_url ? 1 : 0) - (a.avatar_url ? 1 : 0);
-      });
-
+      // Ordenamos para colocar la "Mejor opción" al inicio
+      mappedData.sort((a, b) => b.calificacion - a.calificacion);
       setResultados(mappedData);
     } catch (error) {
       console.error("Error buscando resultados:", error);
     } finally {
       setLoading(false);
     }
-  }, []);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      fetchResultados(busqueda);
-    }, 350); // Debounce optimizado para autocompletado más fluido
-    return () => clearTimeout(timer as any);
-  }, [busqueda, fetchResultados]);
+  };
 
   const getSiglas = (name: string) => {
     if (!name) return "P";
@@ -133,15 +128,20 @@ export default function BuscarClienteScreen() {
 
   return (
     <View style={styles.mainContainer}>
+      <Stack.Screen options={{ headerShown: false }} />
       <StatusBar barStyle="light-content" backgroundColor="#1A3B63" translucent={true} />
       <View style={styles.safeAreaSpacing} />
 
-      {/* --- HEADER (Sin botón de retroceso para no romper el Tab Navigator) --- */}
+      {/* --- HEADER --- */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Buscar profesionales</Text>
+        <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn}>
+          <Ionicons name="arrow-back" size={24} color="white" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Profesionales encontrados</Text>
+        <View style={{ width: 34 }} />
       </View>
 
-      {/* --- BUSCADOR --- */}
+      {/* --- NUEVO BUSCADOR EN TIEMPO REAL --- */}
       <View style={styles.searchSection}>
         <View style={styles.searchBar}>
           <Ionicons name="search" size={20} color="#9CA3AF" />
@@ -167,7 +167,7 @@ export default function BuscarClienteScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* --- CHIPS DE CATEGORÍA --- */}
+      {/* --- NUEVOS CHIPS DE CATEGORÍA --- */}
       <View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipsContainer}>
           {categorias.map((cat) => (
@@ -186,7 +186,6 @@ export default function BuscarClienteScreen() {
         </ScrollView>
       </View>
 
-      {/* --- RESULTADOS DINÁMICOS --- */}
       <ScrollView showsVerticalScrollIndicator={false} style={styles.body} contentContainerStyle={styles.scrollContent}>
         {loading ? (
           <ActivityIndicator size="large" color="#1A3B63" style={{ marginTop: 40 }} />
@@ -194,11 +193,13 @@ export default function BuscarClienteScreen() {
           <View style={styles.emptyState}>
             <Ionicons name="search-outline" size={48} color="#D1D5DB" />
             <Text style={styles.emptyStateText}>No encontramos profesionales con ese criterio.</Text>
+            <TouchableOpacity style={styles.backBtn} onPress={() => { setBusqueda(""); setChipActivo(null); }}>
+              <Text style={styles.backBtnText}>Limpiar búsqueda</Text>
+            </TouchableOpacity>
           </View>
         ) : (
           resultados.map((prof, index) => {
-            // La Mejor Opción SOLO se muestra en la primera fila Y si el usuario ha escrito algo
-            const isMejorOpcion = index === 0 && activeSearchTerm !== "";
+            const isMejorOpcion = index === 0; // Se marca como mejor opción el primero (más calificación)
 
             return (
               <View key={prof.id} style={[styles.card, isMejorOpcion && styles.cardHighlight]}>
@@ -252,7 +253,8 @@ export default function BuscarClienteScreen() {
 const styles = StyleSheet.create({
   mainContainer: { flex: 1, backgroundColor: "#F3F4F6" },
   safeAreaSpacing: { height: Platform.OS === "android" ? StatusBar.currentHeight : 0, backgroundColor: "#1A3B63" },
-  header: { height: 70, backgroundColor: "#1A3B63", flexDirection: "row", alignItems: "center", justifyContent: "center", paddingHorizontal: 15 },
+  header: { height: 70, backgroundColor: "#1A3B63", flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 15 },
+  iconBtn: { padding: 5 },
   headerTitle: { color: "white", fontSize: 18, fontWeight: "bold" },
   searchSection: { flexDirection: "row", paddingHorizontal: 20, marginTop: 20, alignItems: "center" },
   searchBar: { flex: 1, flexDirection: "row", backgroundColor: "white", borderRadius: 12, paddingHorizontal: 15, height: 55, alignItems: "center", borderWidth: 1, borderColor: "#E5E7EB", marginRight: 10 },
@@ -267,6 +269,8 @@ const styles = StyleSheet.create({
   scrollContent: { padding: 20, paddingBottom: 40 },
   emptyState: { alignItems: "center", justifyContent: "center", marginTop: 60 },
   emptyStateText: { color: "#6B7280", marginTop: 10, fontSize: 16, textAlign: 'center' },
+  backBtn: { marginTop: 20, paddingVertical: 10, paddingHorizontal: 20, backgroundColor: "#1A3B63", borderRadius: 8 },
+  backBtnText: { color: "white", fontWeight: "bold" },
   card: { backgroundColor: "white", borderRadius: 16, padding: 20, marginBottom: 20, elevation: 3, shadowColor: "#000", shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.1, shadowRadius: 5 },
   cardHighlight: { borderWidth: 2, borderColor: "#FBBF24" },
   badgeContainer: { flexDirection: "row", position: "absolute", top: -12, left: 20, backgroundColor: "#FEF3C7", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, alignItems: "center", borderWidth: 1, borderColor: "#FBBF24" },

@@ -62,18 +62,18 @@ const SOLICITUD_MOCK = {
   archivos: [{ nombre: "requisitos_proyecto.pdf" }],
 };
 
-const formatearFecha = (fechaStr: string, locale: string = 'es-ES'): string => {
+const formatearFecha = (fechaStr: string, locale: string = "es-ES"): string => {
   const fecha = new Date(`${fechaStr}T00:00:00`);
   if (isNaN(fecha.getTime())) {
-    return 'Fecha no válida';
+    return "Fecha no válida";
   }
   const opciones: Intl.DateTimeFormatOptions = {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric'
+    day: "numeric",
+    month: "long",
+    year: "numeric",
   };
   return new Intl.DateTimeFormat(locale, opciones).format(fecha);
-}; 
+};
 
 export default function SolicitudDetalle() {
   const router = useRouter();
@@ -85,12 +85,13 @@ export default function SolicitudDetalle() {
   const [isLoading, setIsLoading] = useState(false);
 
   const [items, setItems] = useState<Solicitud | null>(null);
-  const [fechaAceptacionRechazo, setFechaAceptacionRechazo] = useState<string | null>(null);
-
+  const [fechaAceptacionRechazo, setFechaAceptacionRechazo] = useState<
+    string | null
+  >(null);
 
   useEffect(() => {
-      if (id) fetchData();
-    }, [id, estado]);
+    if (id) fetchData();
+  }, [id, estado]);
 
   async function fetchData() {
     try {
@@ -118,15 +119,16 @@ export default function SolicitudDetalle() {
     try {
       const { error } = await supabase
         .from("solicitudes_servicio")
-        .update({ estado: "aceptada", fecha_aceptada_rechazada: new Date().toISOString()})
+        .update({
+          estado: "aceptada",
+          fecha_aceptada_rechazada: new Date().toISOString(),
+        })
         .eq("id", id);
-        setEstado("aceptada");
+      setEstado("aceptada");
       if (error) throw error;
-    }
-    catch (error: any) {
+    } catch (error: any) {
       console.error("Error actualizando estado:", error.message);
-    }
-    finally {
+    } finally {
       setModalAceptar(false);
     }
   };
@@ -141,13 +143,11 @@ export default function SolicitudDetalle() {
           fecha_aceptada_rechazada: new Date().toISOString(),
         })
         .eq("id", id);
-        setEstado("rechazada");
+      setEstado("rechazada");
       if (error) throw error;
-    }
-    catch (error: any) {
+    } catch (error: any) {
       console.error("Error actualizando estado:", error.message);
-    }
-    finally {
+    } finally {
       setModalRechazar(false);
       setMotivoRechazo("");
     }
@@ -201,12 +201,18 @@ export default function SolicitudDetalle() {
           label="Servicio solicitado"
           value={items?.proyecto || "Cargando..."}
         />
-        <InfoSection label="Descripción" value={items?.descripcion_problema || "Cargando..."} />
+        <InfoSection
+          label="Descripción"
+          value={items?.descripcion_problema || "Cargando..."}
+        />
         <InfoSection
           label="Presupuesto estimado"
-          value={items?.presupuesto+" $" || "Cargando..."}
+          value={items?.presupuesto + " $" || "Cargando..."}
         />
-        <InfoSection label="Fecha estimada" value={formatearFecha(items?.fecha_estimada || "")} />
+        <InfoSection
+          label="Fecha estimada"
+          value={formatearFecha(items?.fecha_estimada || "")}
+        />
 
         <InfoSection label="Archivos adjuntos">
           {SOLICITUD_MOCK.archivos.map((a) => (
@@ -237,16 +243,15 @@ export default function SolicitudDetalle() {
         )}
 
         {estado === "aceptada" && (
-          <View
-            style={[styles.banner, { backgroundColor: COLORS.successBg }]}
-          >
+          <View style={[styles.banner, { backgroundColor: COLORS.successBg }]}>
             <Ionicons
               name="checkmark-circle"
               size={20}
               color={COLORS.successText}
             />
             <Text style={[styles.bannerText, { color: COLORS.successText }]}>
-              Solicitud aceptada el {formatearFecha(items?.fecha_aceptada_rechazada || "")}
+              Solicitud aceptada el{" "}
+              {formatearFecha(items?.fecha_aceptada_rechazada || "")}
             </Text>
           </View>
         )}
@@ -255,7 +260,8 @@ export default function SolicitudDetalle() {
           <View style={[styles.banner, { backgroundColor: COLORS.dangerBg }]}>
             <Ionicons name="close-circle" size={20} color={COLORS.danger} />
             <Text style={[styles.bannerText, { color: COLORS.danger }]}>
-              Solicitud rechazada el {formatearFecha(items?.fecha_aceptada_rechazada || "")}
+              Solicitud rechazada el{" "}
+              {formatearFecha(items?.fecha_aceptada_rechazada || "")}
             </Text>
           </View>
         )}

@@ -83,6 +83,8 @@ export default function ClientePerfil() {
     nombre: string;
     rol: string;
     avatar_url?: string;
+    biografia?: string; // <--- AÑADE ESTA LÍNEA
+    ubicacion?: string;
   } | null>(null);
 
   useEffect(() => {
@@ -98,7 +100,7 @@ export default function ClientePerfil() {
       if (user) {
         const { data, error } = await supabase
           .from("perfiles")
-          .select("nombre_completo, rol, avatar_url") // <--- Columna añadida
+          .select("nombre_completo, rol, avatar_url, ubicacion") // <--- Columna añadida
           .eq("id", user.id)
           .single();
 
@@ -107,6 +109,8 @@ export default function ClientePerfil() {
           nombre: data.nombre_completo || "Usuario",
           rol: data.rol || "Cliente",
           avatar_url: data.avatar_url,
+          biografia: "Profesional verificado", // <-- Pon un texto fijo temporal
+          ubicacion: data?.ubicacion || "Cochabamba",
         });
       }
     } catch (error) {
@@ -190,7 +194,7 @@ export default function ClientePerfil() {
           </View>
 
           <Text style={styles.userName}>{userData?.nombre}</Text>
-          <Text style={styles.userJob}>Profesional Verificado</Text>
+          <Text style={styles.userJob}>Cliente Verificado</Text>
           <View style={styles.roleBadge}>
             <Text style={styles.roleText}>{userData?.rol?.toUpperCase()}</Text>
           </View>
@@ -207,7 +211,12 @@ export default function ClientePerfil() {
           <MenuOption
             icon="person-outline"
             label="Mi perfil"
-            onPress={() => router.push("/HU-04/EditarDatosPersonales")}
+            onPress={() => router.push("/HU-04/miPerfil")}
+          />
+          <MenuOption
+            icon="briefcase-outline"
+            label="Mi perfil profesional"
+            onPress={() => router.push("/HU-09/perfilProfe")}
           />
           <MenuOption icon="card-outline" label="Métodos de pago" />
 

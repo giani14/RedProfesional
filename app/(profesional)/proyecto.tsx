@@ -142,7 +142,7 @@ export default function ProyectosProfesional() {
     <SafeAreaView style={styles.container}>
       <Stack.Screen
         options={{
-          title: "Gestión de Proyectos",
+          title: "Proyectos",
           headerShown: true,
           headerStyle: { backgroundColor: COLORS.primaryBlue },
           headerTintColor: COLORS.white,

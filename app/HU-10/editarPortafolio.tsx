@@ -1,25 +1,25 @@
 import {
-    actualizarPortafolio,
-    ArchivoPortafolioDB,
-    eliminarPortafolio,
-    listarMisPortafolios,
-    PortafolioDB,
-    subirArchivoPortafolio,
+  actualizarPortafolio,
+  ArchivoPortafolioDB,
+  eliminarPortafolio,
+  listarMisPortafolios,
+  PortafolioDB,
+  subirArchivoPortafolio,
 } from "@/lib/portafolioService";
 import { supabase } from "@/lib/supabase";
 import * as DocumentPicker from "expo-document-picker";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    Image,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 type PortafolioItem = PortafolioDB;
@@ -38,9 +38,9 @@ export default function HU10EditarEliminarPortafolio() {
   const [tituloEditado, setTituloEditado] = useState("");
   const [descripcionEditada, setDescripcionEditada] = useState("");
   const [categoriaEditada, setCategoriaEditada] = useState("");
-  const [archivosEditados, setArchivosEditados] = useState<ArchivoPortafolioDB[]>(
-    []
-  );
+  const [archivosEditados, setArchivosEditados] = useState<
+    ArchivoPortafolioDB[]
+  >([]);
 
   useEffect(() => {
     cargarPortafolios();
@@ -85,7 +85,10 @@ export default function HU10EditarEliminarPortafolio() {
       } = await supabase.auth.getUser();
 
       if (userError || !user) {
-        Alert.alert("Sesión requerida", "Debes iniciar sesión para subir archivos.");
+        Alert.alert(
+          "Sesión requerida",
+          "Debes iniciar sesión para subir archivos.",
+        );
         return;
       }
 
@@ -105,7 +108,7 @@ export default function HU10EditarEliminarPortafolio() {
         if (file.size && file.size > MAX_FILE_SIZE) {
           Alert.alert(
             "Archivo muy grande",
-            `${file.name} supera el tamaño máximo permitido de 5 MB.`
+            `${file.name} supera el tamaño máximo permitido de 5 MB.`,
           );
           continue;
         }
@@ -160,7 +163,7 @@ export default function HU10EditarEliminarPortafolio() {
     if (archivosEditados.length === 0) {
       Alert.alert(
         "Archivo requerido",
-        "El trabajo debe tener al menos un archivo asociado."
+        "El trabajo debe tener al menos un archivo asociado.",
       );
       return;
     }
@@ -177,7 +180,9 @@ export default function HU10EditarEliminarPortafolio() {
       });
 
       setItems((prevItems) =>
-        prevItems.map((item) => (item.id === actualizado.id ? actualizado : item))
+        prevItems.map((item) =>
+          item.id === actualizado.id ? actualizado : item,
+        ),
       );
 
       limpiarEdicion();
@@ -205,7 +210,7 @@ export default function HU10EditarEliminarPortafolio() {
           style: "destructive",
           onPress: () => eliminarTrabajo(id),
         },
-      ]
+      ],
     );
   };
 
@@ -338,12 +343,17 @@ export default function HU10EditarEliminarPortafolio() {
                 >
                   <Text style={styles.uploadIcon}>↑</Text>
                   <Text style={styles.uploadText}>
-                    {procesando ? "Subiendo archivo..." : "Agregar imágenes o documentos"}
+                    {procesando
+                      ? "Subiendo archivo..."
+                      : "Agregar imágenes o documentos"}
                   </Text>
                 </TouchableOpacity>
 
                 {archivosEditados.map((archivo, index) => (
-                  <View key={`${archivo.name}-${index}`} style={styles.fileItem}>
+                  <View
+                    key={`${archivo.name}-${index}`}
+                    style={styles.fileItem}
+                  >
                     <View style={styles.fileIconBox}>
                       <Text style={styles.fileIcon}>
                         {archivo.mimeType?.includes("pdf") ? "PDF" : "IMG"}
@@ -487,7 +497,7 @@ export default function HU10EditarEliminarPortafolio() {
 
             <TouchableOpacity
               style={styles.addAnotherButton}
-              onPress={() => router.push("/HU-09")}
+              onPress={() => router.push("/HU-09/subirPortafolio")}
             >
               <Text style={styles.addAnotherText}>Agregar otro trabajo</Text>
             </TouchableOpacity>

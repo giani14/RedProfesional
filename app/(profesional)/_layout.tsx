@@ -1,117 +1,155 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
-import React from "react";
+import { StyleSheet, View } from "react-native";
 
 export default function ProfesionalLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: "#2563EB",
-        tabBarInactiveTintColor: "#6B7280",
+        headerShown: false,
+        tabBarActiveTintColor: "#1A4670", // Color del texto cuando está activo
+        tabBarInactiveTintColor: "#64748B", // Color del texto cuando está inactivo
         tabBarStyle: {
-          backgroundColor: "#ffffff",
           height: 70,
           paddingBottom: 12,
           paddingTop: 8,
+          backgroundColor: "#FFFFFF",
           borderTopWidth: 1,
-          borderTopColor: "#F3F4F6",
-          elevation: 10,
-          shadowColor: "#000",
-          shadowOffset: { width: 0, height: -2 },
+          borderTopColor: "#F1F5F9",
+          elevation: 8, // Sombra para Android
+          shadowColor: "#000", // Sombra para iOS
           shadowOpacity: 0.05,
-          shadowRadius: 3,
+          shadowRadius: 10,
         },
         tabBarLabelStyle: {
-          fontSize: 12,
-          fontWeight: "500",
+          fontSize: 11,
+          fontWeight: "600",
         },
-        headerStyle: {
-          backgroundColor: "#1A4670",
-        },
-        headerTintColor: "#fff",
-        headerTitleAlign: "center",
       }}
     >
+      {/* INICIO */}
       <Tabs.Screen
         name="index"
         options={{
           title: "Inicio",
-          headerShown: false,
-          tabBarIcon: ({ color, focused }) => (
-            <Ionicons
-              name={focused ? "home" : "home-outline"}
-              size={24}
-              color={color}
-            />
+          tabBarIcon: ({ focused, color }) => (
+            <View
+              style={[
+                styles.iconContainer,
+                focused && styles.iconContainerActive,
+              ]}
+            >
+              <Ionicons
+                name={focused ? "home" : "home-outline"}
+                size={22}
+                color={focused ? "#FFFFFF" : color}
+              />
+            </View>
           ),
         }}
       />
 
+      {/* PROYECTOS (REEMPLAZA A BUSCAR) */}
       <Tabs.Screen
         name="proyecto"
         options={{
-          title: "Proyectos",
-          headerShown: false,
-          tabBarIcon: ({ color, focused }) => (
-            <Ionicons
-              name={focused ? "folder" : "folder-outline"}
-              size={24}
-              color={color}
-            />
+          title: "Proyectos ",
+          tabBarIcon: ({ focused, color }) => (
+            <View
+              style={[
+                styles.iconContainer,
+                focused && styles.iconContainerActive,
+              ]}
+            >
+              <Ionicons
+                name={focused ? "briefcase" : "briefcase-outline"}
+                size={22}
+                color={focused ? "#FFFFFF" : color}
+              />
+            </View>
           ),
         }}
       />
 
+      {/* SOLICITUDES (EL ICONO DE LA IMAGEN) */}
       <Tabs.Screen
         name="solicitudes"
         options={{
           title: "Solicitudes",
-          tabBarIcon: ({ color, focused }) => (
-            <Ionicons
-              name={focused ? "list-circle" : "list-circle-outline"}
-              size={24}
-              color={color}
-            />
+          tabBarIcon: ({ focused, color }) => (
+            <View
+              style={[
+                styles.iconContainer,
+                focused && styles.iconContainerActive,
+              ]}
+            >
+              <Ionicons
+                name={focused ? "copy" : "copy-outline"}
+                size={22}
+                color={focused ? "#FFFFFF" : color}
+              />
+            </View>
           ),
         }}
       />
 
+      {/* MENSAJES */}
       <Tabs.Screen
         name="mensajes"
         options={{
           title: "Mensajes",
-          tabBarIcon: ({ color, focused }) => (
-            <Ionicons
-              name={focused ? "chatbubble" : "chatbubble-outline"}
-              size={24}
-              color={color}
-            />
+          tabBarIcon: ({ focused, color }) => (
+            <View
+              style={[
+                styles.iconContainer,
+                focused && styles.iconContainerActive,
+              ]}
+            >
+              <Ionicons
+                name={focused ? "chatbubble" : "chatbubble-outline"}
+                size={22}
+                color={focused ? "#FFFFFF" : color}
+              />
+            </View>
           ),
         }}
       />
 
-      <Tabs.Screen
-        name="solicitudDetalle"
-        options={{
-          href: null,
-          headerShown: false,
-        }}
-      />
-
+      {/* PERFIL */}
       <Tabs.Screen
         name="perfil"
         options={{
           title: "Perfil",
-          headerShown: false,
-          tabBarIcon: ({ color, focused }) => (
-            <Ionicons
-              name={focused ? "person" : "person-outline"}
-              size={24}
-              color={color}
-            />
+          tabBarIcon: ({ focused, color }) => (
+            <View
+              style={[
+                styles.iconContainer,
+                focused && styles.iconContainerActive,
+              ]}
+            >
+              <Ionicons
+                name={focused ? "person" : "person-outline"}
+                size={22}
+                color={focused ? "#FFFFFF" : color}
+              />
+            </View>
           ),
         }}
       />
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  iconContainer: {
+    width: 48,
+    height: 30,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 4,
+  },
+  iconContainerActive: {
+    backgroundColor: "#1A4670", // Azul oscuro idéntico a tu imagen
+  },
+});

@@ -3,14 +3,14 @@ import * as DocumentPicker from "expo-document-picker";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import {
-    Alert,
-    Image,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Alert,
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 type ArchivoPortafolio = {
@@ -38,7 +38,7 @@ export default function HU09SubirPortafolio() {
   const [subiendo, setSubiendo] = useState(false);
 
   const [trabajosGuardados, setTrabajosGuardados] = useState<TrabajoGuardado[]>(
-    []
+    [],
   );
   const [mostrarFormulario, setMostrarFormulario] = useState(true);
   const [mostrarExito, setMostrarExito] = useState(false);
@@ -59,7 +59,7 @@ export default function HU09SubirPortafolio() {
         if (file.size && file.size > MAX_FILE_SIZE) {
           Alert.alert(
             "Archivo muy grande",
-            `${file.name} supera el tamaño máximo permitido de 5 MB.`
+            `${file.name} supera el tamaño máximo permitido de 5 MB.`,
           );
           continue;
         }
@@ -82,70 +82,73 @@ export default function HU09SubirPortafolio() {
     setArchivos((prev) => prev.filter((_, i) => i !== index));
   };
 
-const subirPortafolio = async () => {
-  if (!titulo.trim()) {
-    Alert.alert("Campo obligatorio", "Debes ingresar el título del trabajo.");
-    return;
-  }
+  const subirPortafolio = async () => {
+    if (!titulo.trim()) {
+      Alert.alert("Campo obligatorio", "Debes ingresar el título del trabajo.");
+      return;
+    }
 
-  if (!descripcion.trim()) {
-    Alert.alert("Campo obligatorio", "Debes ingresar una descripción.");
-    return;
-  }
+    if (!descripcion.trim()) {
+      Alert.alert("Campo obligatorio", "Debes ingresar una descripción.");
+      return;
+    }
 
-  if (!categoria.trim()) {
-    Alert.alert("Campo obligatorio", "Debes ingresar una categoría.");
-    return;
-  }
+    if (!categoria.trim()) {
+      Alert.alert("Campo obligatorio", "Debes ingresar una categoría.");
+      return;
+    }
 
-  if (archivos.length === 0) {
-    Alert.alert(
-      "Archivo requerido",
-      "Debes agregar al menos una imagen o documento."
-    );
-    return;
-  }
+    if (archivos.length === 0) {
+      Alert.alert(
+        "Archivo requerido",
+        "Debes agregar al menos una imagen o documento.",
+      );
+      return;
+    }
 
-  setSubiendo(true);
+    setSubiendo(true);
 
-  try {
-    const nuevoTrabajo = await crearPortafolio({
-      titulo,
-      descripcion,
-      categoria,
-      archivos,
-    });
+    try {
+      const nuevoTrabajo = await crearPortafolio({
+        titulo,
+        descripcion,
+        categoria,
+        archivos,
+      });
 
-    setTrabajosGuardados((prev) => [
-      {
-        id: Date.now(),
-        titulo: nuevoTrabajo.titulo,
-        descripcion: nuevoTrabajo.descripcion,
-        categoria: nuevoTrabajo.categoria,
-        archivos: [...archivos],
-      },
-      ...prev,
-    ]);
+      setTrabajosGuardados((prev) => [
+        {
+          id: Date.now(),
+          titulo: nuevoTrabajo.titulo,
+          descripcion: nuevoTrabajo.descripcion,
+          categoria: nuevoTrabajo.categoria,
+          archivos: [...archivos],
+        },
+        ...prev,
+      ]);
 
-    setTitulo("");
-    setDescripcion("");
-    setCategoria("");
-    setArchivos([]);
+      setTitulo("");
+      setDescripcion("");
+      setCategoria("");
+      setArchivos([]);
 
-    setMostrarFormulario(false);
-    setMostrarExito(true);
+      setMostrarFormulario(false);
+      setMostrarExito(true);
 
-    Alert.alert(
-      "Portafolio subido",
-      "Tu trabajo fue agregado correctamente al portafolio."
-    );
-  } catch (error) {
-    console.error(error);
-    Alert.alert("Error", "No se pudo guardar el portafolio en la base de datos.");
-  } finally {
-    setSubiendo(false);
-  }
-};
+      Alert.alert(
+        "Portafolio subido",
+        "Tu trabajo fue agregado correctamente al portafolio.",
+      );
+    } catch (error) {
+      console.error(error);
+      Alert.alert(
+        "Error",
+        "No se pudo guardar el portafolio en la base de datos.",
+      );
+    } finally {
+      setSubiendo(false);
+    }
+  };
 
   const abrirFormulario = () => {
     setMostrarFormulario(true);
@@ -335,7 +338,10 @@ const subirPortafolio = async () => {
                 </TouchableOpacity>
 
                 {archivos.map((archivo, index) => (
-                  <View key={`${archivo.name}-${index}`} style={styles.fileItem}>
+                  <View
+                    key={`${archivo.name}-${index}`}
+                    style={styles.fileItem}
+                  >
                     <View style={styles.fileIconBox}>
                       <Text style={styles.fileIcon}>
                         {archivo.mimeType?.includes("pdf") ? "PDF" : "IMG"}

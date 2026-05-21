@@ -3,13 +3,13 @@ import { Ionicons } from "@expo/vector-icons";
 import { Stack, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-    Alert,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 export default function EditarExperienciaProfesional() {
@@ -34,10 +34,14 @@ export default function EditarExperienciaProfesional() {
       .single();
 
     if (data) {
-      setEspecialidad(data.titulo_especialidad || "");
-      setExperiencia(
-        data.años_experiencia?.toString() || ""
+      setEspecialidad(
+        data.titulo_especialidad || ""
       );
+
+      setExperiencia(
+        data.experiencia?.toString() || ""
+      );
+
       setBiografia(data.biografia || "");
     }
   };
@@ -58,7 +62,7 @@ export default function EditarExperienciaProfesional() {
       .upsert({
         profesional_id: user.id,
         titulo_especialidad: especialidad,
-        años_experiencia: Number(experiencia),
+        experiencia: Number(experiencia),
         biografia: biografia,
       });
 
@@ -80,7 +84,9 @@ export default function EditarExperienciaProfesional() {
       <Stack.Screen options={{ headerShown: false }} />
 
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+        >
           <Ionicons
             name="arrow-back"
             size={24}
@@ -89,56 +95,97 @@ export default function EditarExperienciaProfesional() {
         </TouchableOpacity>
 
         <Text style={styles.headerTitle}>
-          Experiencia profesional
+          Registrar experiencia
         </Text>
       </View>
 
       <View style={styles.content}>
+        <Text style={styles.titulo}>
+          Agrega tu experiencia profesional
+        </Text>
+
+        <Text style={styles.subtitulo}>
+          Completa tu trayectoria profesional
+        </Text>
+
         <Text style={styles.label}>
           Especialidad
         </Text>
 
-        <TextInput
-          style={styles.input}
-          value={especialidad}
-          onChangeText={setEspecialidad}
-          placeholder="Electricidad residencial"
-        />
+        <View style={styles.inputContainer}>
+          <Ionicons
+            name="briefcase-outline"
+            size={20}
+            color="#666"
+          />
+
+          <TextInput
+            style={styles.input}
+            value={especialidad}
+            onChangeText={setEspecialidad}
+            placeholder="Electricista"
+          />
+        </View>
 
         <Text style={styles.label}>
           Años de experiencia
         </Text>
 
-        <TextInput
-          style={styles.input}
-          value={experiencia}
-          onChangeText={setExperiencia}
-          keyboardType="numeric"
-          placeholder="5"
-        />
+        <View style={styles.inputContainer}>
+          <Ionicons
+            name="calendar-outline"
+            size={20}
+            color="#666"
+          />
+
+          <TextInput
+            style={styles.input}
+            value={experiencia}
+            onChangeText={setExperiencia}
+            keyboardType="numeric"
+            placeholder="5"
+          />
+        </View>
 
         <Text style={styles.label}>
           Experiencia laboral
         </Text>
 
-        <TextInput
-          style={styles.textArea}
-          multiline
-          value={biografia}
-          onChangeText={setBiografia}
-          placeholder="Describe tu experiencia..."
-        />
+        <View style={styles.textAreaContainer}>
+          <Ionicons
+            name="document-text-outline"
+            size={20}
+            color="#666"
+            style={{ marginTop: 15 }}
+          />
+
+          <TextInput
+            style={styles.textArea}
+            multiline
+            value={biografia}
+            onChangeText={setBiografia}
+            placeholder="Describe tu experiencia..."
+          />
+        </View>
 
         <Text style={styles.label}>
           Certificaciones
         </Text>
 
-        <TextInput
-          style={styles.input}
-          value={certificacion}
-          onChangeText={setCertificacion}
-          placeholder="Instalaciones eléctricas"
-        />
+        <View style={styles.inputContainer}>
+          <Ionicons
+            name="ribbon-outline"
+            size={20}
+            color="#666"
+          />
+
+          <TextInput
+            style={styles.input}
+            value={certificacion}
+            onChangeText={setCertificacion}
+            placeholder="Instalaciones eléctricas"
+          />
+        </View>
 
         <TouchableOpacity
           style={styles.button}
@@ -179,6 +226,20 @@ const styles = StyleSheet.create({
     padding: 20,
   },
 
+  titulo: {
+    fontSize: 22,
+    fontWeight: "bold",
+    color: "#1A4670",
+    textAlign: "center",
+    marginBottom: 10,
+  },
+
+  subtitulo: {
+    textAlign: "center",
+    color: "#666",
+    marginBottom: 30,
+  },
+
   label: {
     fontWeight: "bold",
     marginTop: 20,
@@ -186,22 +247,40 @@ const styles = StyleSheet.create({
     color: "#1A4670",
   },
 
-  input: {
+  inputContainer: {
+    flexDirection: "row",
+    alignItems: "center",
     borderWidth: 1,
     borderColor: "#DDD",
     borderRadius: 10,
-    padding: 15,
+    paddingHorizontal: 15,
     backgroundColor: "#F9FAFB",
+    height: 55,
+  },
+
+  input: {
+    flex: 1,
+    marginLeft: 10,
+    fontSize: 16,
+  },
+
+  textAreaContainer: {
+    flexDirection: "row",
+    borderWidth: 1,
+    borderColor: "#DDD",
+    borderRadius: 10,
+    paddingHorizontal: 15,
+    backgroundColor: "#F9FAFB",
+    minHeight: 120,
+    alignItems: "flex-start",
   },
 
   textArea: {
-    borderWidth: 1,
-    borderColor: "#DDD",
-    borderRadius: 10,
-    padding: 15,
+    flex: 1,
+    marginLeft: 10,
     height: 120,
     textAlignVertical: "top",
-    backgroundColor: "#F9FAFB",
+    paddingTop: 15,
   },
 
   button: {

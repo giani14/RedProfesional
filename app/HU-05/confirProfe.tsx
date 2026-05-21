@@ -67,7 +67,7 @@ export default function ConfirProfeScreen() {
         .upsert({
           id: user.id,
           titulo_especialidad: especialidad,
-          años_experiencia: parseInt(experiencia as string) || 0,
+          experiencia: parseInt(experiencia as string) || 0,
           biografia: descripcion,
           aprobado: true,
         });

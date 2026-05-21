@@ -3,14 +3,14 @@ import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    Dimensions,
-    Image,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Dimensions,
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -136,7 +136,7 @@ export default function VerPerfilProfesional() {
           {/* STATS GRID */}
           <View style={styles.statsGrid}>
             <StatItem
-              val={perfil?.profesionales_info?.años_experiencia || "0"}
+              val={perfil?.profesionales_info?.experiencia || "0"}
               lab="Años de experiencia"
             />
             <StatItem val="120+" lab="Servicios realizados" />
@@ -153,7 +153,7 @@ export default function VerPerfilProfesional() {
           title="Experiencia"
         >
           <Text style={styles.expHighlight}>
-            {perfil?.profesionales_info?.años_experiencia} años
+            {perfil?.profesionales_info?.experiencia} años
           </Text>
           <Text style={styles.secText}>
             Trayectoria profesional en instalaciones y mantenimiento en{" "}

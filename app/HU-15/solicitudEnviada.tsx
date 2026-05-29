@@ -2,12 +2,12 @@ import { Ionicons } from "@expo/vector-icons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import React from "react";
 import {
-    Dimensions,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Dimensions,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -78,7 +78,7 @@ export default function SolicitudEnviada2() {
       <View style={styles.footer}>
         <TouchableOpacity
           style={styles.btnPrimary}
-          onPress={() => router.push("/(cliente)/pedidos")} // Ajusta a tu ruta de pedidos
+          onPress={() => router.push("/(cliente)/solicitudes" as any)}
         >
           <Text style={styles.btnPrimaryText}>Ver mis solicitudes</Text>
         </TouchableOpacity>

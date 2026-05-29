@@ -1,19 +1,18 @@
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 import { useFonts } from "expo-font";
-import { Stack } from "expo-router";
+import { Stack, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 import "react-native-reanimated";
+import { supabase } from "../lib/supabase"; // Asegúrate de que esta ruta sea correcta
 
 export { ErrorBoundary } from "expo-router";
 
-// Configuración de la ruta inicial
 export const unstable_settings = {
   initialRouteName: "index",
 };
 
-// Mantenemos la Splash Screen visible hasta que carguen las fuentes
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
@@ -22,12 +21,69 @@ export default function RootLayout() {
     ...FontAwesome.font,
   });
 
-  // Manejo de errores de carga de fuentes
+  const segments = useSegments();
+  const router = useRouter();
+
+  // 1. Manejo de errores de carga de fuentes
   useEffect(() => {
     if (error) throw error;
   }, [error]);
 
-  // Ocultar Splash Screen cuando todo esté listo
+  // 2. Lógica de Autenticación y Redirección por Rol
+  useEffect(() => {
+    if (!loaded) return;
+
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        // Si no hay sesión, mandarlo al index/login si intenta entrar a áreas protegidas
+        if (!session) {
+          const inAuthGroup =
+            segments[0] === "(cliente)" ||
+            segments[0] === "(profesional)" ||
+            segments[0] === "(admin)";
+          if (inAuthGroup) {
+            router.replace("/");
+          }
+          return;
+        }
+
+        try {
+          // Consultar el rol del usuario en la tabla de perfiles
+          // Nota: Asegúrate de que tu tabla se llame 'perfiles' o 'usuarios'
+          const { data: profile, error: profileError } = await supabase
+            .from("perfiles")
+            .select("rol")
+            .eq("id", session.user.id)
+            .single();
+
+          if (profileError) throw profileError;
+
+          const userRol = profile?.rol; // Ejemplo: 'cliente', 'profesional', 'admin'
+          const currentGroup = segments[0];
+
+          // Redirección forzada basada en el ROL
+          if (userRol === "Profesional" && currentGroup !== "(profesional)") {
+            router.replace("/(profesional)");
+          } else if (
+            userRol === "Administrador" &&
+            currentGroup !== "(admin)"
+          ) {
+            router.replace("/(admin)");
+          } else if (userRol === "Cliente" && currentGroup !== "(cliente)") {
+            router.replace("/(cliente)");
+          }
+        } catch (err) {
+          console.error("Error verificando rol:", err);
+        }
+      },
+    );
+
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
+  }, [loaded, segments]);
+
+  // 3. Ocultar Splash Screen cuando las fuentes carguen
   useEffect(() => {
     if (loaded) {
       SplashScreen.hideAsync();
@@ -40,41 +96,25 @@ export default function RootLayout() {
 
   return (
     <>
-      {/* 
-        Forzamos la StatusBar a estilo 'light' para que resalte sobre el fondo azul 
-        que estamos usando en RedProfesional.
-      */}
       <StatusBar style="light" backgroundColor="#1A4670" />
 
       <Stack
         screenOptions={{
-          // Estilo global para los encabezados de la app
-          headerStyle: {
-            backgroundColor: "#1A4670",
-          },
+          headerStyle: { backgroundColor: "#1A4670" },
           headerTintColor: "#FFFFFF",
-          headerTitleStyle: {
-            fontWeight: "bold",
-          },
+          headerTitleStyle: { fontWeight: "bold" },
           headerTitleAlign: "center",
-          headerShown: false, // Por defecto oculto, lo activamos solo donde sea necesario
+          headerShown: false,
         }}
       >
-        {/* Pantalla principal de acceso/entrada */}
         <Stack.Screen name="index" />
-
-        {/* Grupos de roles: Gestionan sus propios layouts internamente */}
         <Stack.Screen name="(cliente)" />
         <Stack.Screen name="(profesional)" />
         <Stack.Screen name="(admin)" />
-
-        {/* Módulos de Historias de Usuario (Login, etc.) */}
         <Stack.Screen
           name="HU-02/login"
           options={{ title: "Iniciar Sesión" }}
         />
-
-        {/* Configuración para Modales */}
         <Stack.Screen
           name="modal"
           options={{

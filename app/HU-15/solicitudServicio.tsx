@@ -1,17 +1,21 @@
 import { supabase } from "@/lib/supabase";
 import { Feather, Ionicons } from "@expo/vector-icons";
+import DateTimePicker, {
+  DateTimePickerEvent,
+} from "@react-native-community/datetimepicker"; // <-- IMPORTE EL PICKER
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    Dimensions,
-    Image,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Dimensions,
+  Image,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -28,7 +32,7 @@ const COLORS = {
 
 export default function EnviarSolicitud() {
   const router = useRouter();
-  const { id } = useLocalSearchParams(); // Recibe el ID del profesional seleccionado
+  const { id } = useLocalSearchParams();
   const [profe, setProfe] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
@@ -36,7 +40,10 @@ export default function EnviarSolicitud() {
   const [servicio, setServicio] = useState("");
   const [descripcion, setDescripcion] = useState("");
   const [presupuesto, setPresupuesto] = useState("");
-  const [fecha, setFecha] = useState("");
+
+  // NUEVOS ESTADOS PARA MANEJAR EL CALENDARIO
+  const [fechaObjeto, setFechaObjeto] = useState<Date | null>(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   useEffect(() => {
     if (id) cargarDatosProfe();
@@ -60,26 +67,41 @@ export default function EnviarSolicitud() {
     }
   };
 
+  // MANEJADOR AL SELECCIONAR LA FECHA
+  const onFechaChange = (event: DateTimePickerEvent, selectedDate?: Date) => {
+    setShowDatePicker(Platform.OS === "ios"); // En iOS se mantiene abierto, en Android se cierra
+    if (selectedDate) {
+      setFechaObjeto(selectedDate);
+    }
+  };
+
+  // FORMATEADOR DE FECHA EN TEXTO (DD/MM/AAAA)
+  const formatFechaTexto = (date: Date | null) => {
+    if (!date) return "Selecciona una fecha";
+    const dia = String(date.getDate()).padStart(2, "0");
+    const mes = String(date.getMonth() + 1).padStart(2, "0");
+    const anio = date.getFullYear();
+    return `${dia}/${mes}/${anio}`;
+  };
+
   const handleContinue = () => {
-    // Validación básica: Servicio y Descripción son obligatorios para avanzar
     if (!servicio.trim() || !descripcion.trim()) {
       alert("Por favor completa los campos de servicio y descripción.");
       return;
     }
 
-    // Navegación a la pantalla de revisión enviando todos los parámetros necesarios
     router.push({
       pathname: "/HU-15/revisarSolicitud",
       params: {
-        id: id, // ID del profesional
+        id: id,
         nombre: profe?.nombre_completo,
         especialidad: profe?.profesionales_info?.titulo_especialidad,
         ciudad: profe?.ciudad || "Cochabamba",
         avatar: profe?.avatar_url,
-        servicio: servicio, // Dato del formulario
-        descripcion: descripcion, // Dato del formulario
-        presupuesto: presupuesto, // Dato del formulario
-        fecha: fecha, // Dato del formulario
+        servicio: servicio,
+        descripcion: descripcion,
+        presupuesto: presupuesto,
+        fecha: formatFechaTexto(fechaObjeto), // Pasa la fecha formateada como string
       },
     });
   };
@@ -201,20 +223,39 @@ export default function EnviarSolicitud() {
           </View>
         </View>
 
+        {/* CAMPO DE FECHA MODIFICADO CON SELECCIONADOR INTERACTIVO */}
         <View style={styles.formGroup}>
           <Text style={styles.inputLabel}>
             Fecha estimada <Text style={styles.optional}>(opcional)</Text>
           </Text>
-          <View style={styles.inputWrapper}>
-            <TextInput
-              placeholder="Selecciona una fecha"
-              value={fecha}
-              onChangeText={setFecha}
-              style={styles.input}
-            />
+          <TouchableOpacity
+            style={styles.inputWrapper}
+            activeOpacity={0.7}
+            onPress={() => setShowDatePicker(true)}
+          >
+            <Text
+              style={[
+                styles.input,
+                { textAlignVertical: "center" },
+                !fechaObjeto && { color: COLORS.textSecondary },
+              ]}
+            >
+              {formatFechaTexto(fechaObjeto)}
+            </Text>
             <Feather name="calendar" size={20} color={COLORS.textSecondary} />
-          </View>
+          </TouchableOpacity>
         </View>
+
+        {/* COMPONENTE EXPO DATETIMEPICKER MODAL */}
+        {showDatePicker && (
+          <DateTimePicker
+            value={fechaObjeto || new Date()}
+            mode="date"
+            display="default"
+            onChange={onFechaChange}
+            minimumDate={new Date()} // <-- ESTO BLOQUEA LAS FECHAS ANTERIORES A HOY
+          />
+        )}
 
         <TouchableOpacity style={styles.btnContinue} onPress={handleContinue}>
           <Text style={styles.btnText}>Continuar</Text>

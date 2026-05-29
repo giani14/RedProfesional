@@ -17,7 +17,7 @@ import {
 const COLORS = {
   primaryBlue: "#1A4670",
   white: "#FFFFFF",
-  background: "#F8FAFC", // Un gris más limpio como la imagen
+  background: "#F8FAFC",
   textDark: "#1E293B",
   textGray: "#64748B",
   chipInactive: "#F1F5F9",
@@ -30,7 +30,14 @@ const COLORS = {
   rejectedText: "#B91C1C",
 };
 
-type EstadoSolicitud = "pendiente" | "aceptada" | "rechazada";
+// Ajustamos los tipos para que coincidan con las Mayúsculas de tu base de datos si es necesario
+type EstadoSolicitud =
+  | "pendiente"
+  | "aceptada"
+  | "rechazada"
+  | "Pendiente"
+  | "Aceptada"
+  | "Rechazada";
 
 interface Solicitud {
   id: string;
@@ -47,10 +54,15 @@ const FILTROS = ["Todas", "Pendientes", "Aceptadas", "Rechazadas"] as const;
 type Filtro = (typeof FILTROS)[number];
 
 const estadoStyles: Record<
-  EstadoSolicitud,
+  string,
   { bg: string; color: string; label: string }
 > = {
   pendiente: {
+    bg: COLORS.pendingBg,
+    color: COLORS.pendingText,
+    label: "Pendiente",
+  },
+  Pendiente: {
     bg: COLORS.pendingBg,
     color: COLORS.pendingText,
     label: "Pendiente",
@@ -60,7 +72,17 @@ const estadoStyles: Record<
     color: COLORS.acceptedText,
     label: "Aceptada",
   },
+  Aceptada: {
+    bg: COLORS.acceptedBg,
+    color: COLORS.acceptedText,
+    label: "Aceptada",
+  },
   rechazada: {
+    bg: COLORS.rejectedBg,
+    color: COLORS.rejectedText,
+    label: "Rechazada",
+  },
+  Rechazada: {
     bg: COLORS.rejectedBg,
     color: COLORS.rejectedText,
     label: "Rechazada",
@@ -68,7 +90,7 @@ const estadoStyles: Record<
 };
 
 function formatearFecha(fechaIso: string): string {
-  if (!fechaIso) return "";
+  if (!fechaIso) return "Reciente";
   const fecha = new Date(fechaIso);
   return fecha.toLocaleDateString("es-ES", {
     day: "numeric",
@@ -84,39 +106,32 @@ function SolicitudCard({
   item: Solicitud;
   onPress: () => void;
 }) {
-  const badge = estadoStyles[item.estado];
-
-  // SOLUCIÓN: Usamos un estado para la imagen. Empezamos con una imagen por defecto
+  const badge = estadoStyles[item.estado] || estadoStyles["pendiente"];
   const [imageUri, setImageUri] = useState<string>(
     "https://via.placeholder.com/150/F1F5F9/94A3B8?text=%20",
-  ); // Un placeholder gris limpio
+  );
 
   useEffect(() => {
-    // Si la base de datos nos da una URL real, actualizamos el estado
     if (
-      item.perfiles.avatar_url &&
+      item.perfiles?.avatar_url &&
       item.perfiles.avatar_url.startsWith("http")
     ) {
       setImageUri(item.perfiles.avatar_url);
     }
-  }, [item.perfiles.avatar_url]);
+  }, [item.perfiles?.avatar_url]);
 
   return (
     <TouchableOpacity style={styles.card} activeOpacity={0.8} onPress={onPress}>
-      {/* 1. Contenedor del Avatar - SIEMPRE presente y alineado */}
       <View style={styles.avatarContainer}>
         <Image
           source={{ uri: imageUri }}
           style={styles.avatarImg}
-          onError={() => {
-            // Si la URL real falla, volvemos a poner el placeholder para no romper el diseño
+          onError={() =>
             setImageUri(
               "https://via.placeholder.com/150/F1F5F9/94A3B8?text=%20",
-            );
-          }}
+            )
+          }
         />
-
-        {/* Si la URL es la por defecto, mostramos el icono de persona encima para que se vea igual a los otros */}
         {imageUri.includes("via.placeholder.com") && (
           <View style={styles.iconOverlay}>
             <Ionicons name="person" size={24} color="#94A3B8" />
@@ -124,20 +139,18 @@ function SolicitudCard({
         )}
       </View>
 
-      {/* 2. Contenedor de Información (Central) */}
       <View style={styles.cardInfo}>
         <Text style={styles.cardName} numberOfLines={1}>
-          {item.perfiles.nombre_completo}
+          {item.perfiles?.nombre_completo || "Cliente Requiriente"}
         </Text>
         <Text style={styles.cardProject} numberOfLines={1}>
-          {item.proyecto}
+          {item.proyecto || "Sin título de proyecto"}
         </Text>
         <Text style={styles.cardDate}>
           {formatearFecha(item.fecha_solicitud)}
         </Text>
       </View>
 
-      {/* 3. Contenedor Derecho (Badge y Flecha) */}
       <View style={styles.cardRight}>
         <View style={[styles.badge, { backgroundColor: badge.bg }]}>
           <Text style={[styles.badgeText, { color: badge.color }]}>
@@ -154,6 +167,7 @@ function SolicitudCard({
     </TouchableOpacity>
   );
 }
+
 export default function SolicitudesProfesional() {
   const router = useRouter();
   const [filtroActivo, setFiltroActivo] = useState<Filtro>("Todas");
@@ -162,12 +176,13 @@ export default function SolicitudesProfesional() {
 
   const solicitudesMostrar = useMemo(() => {
     if (filtroActivo === "Todas") return items;
-    const mapa: Record<string, EstadoSolicitud> = {
+    const mapa: Record<string, string> = {
       Pendientes: "pendiente",
       Aceptadas: "aceptada",
       Rechazadas: "rechazada",
     };
-    return items.filter((s) => s.estado === mapa[filtroActivo]);
+    // Filtramos ignorando mayúsculas/minúsculas para evitar errores de la DB
+    return items.filter((s) => s.estado?.toLowerCase() === mapa[filtroActivo]);
   }, [filtroActivo, items]);
 
   useFocusEffect(
@@ -179,20 +194,30 @@ export default function SolicitudesProfesional() {
   async function fetchData() {
     try {
       setIsLoading(true);
-      const { data, error } = (await supabase
+
+      // CONSULTA CONECTADA: Traemos solicitudes y el perfil del cliente que la creó
+      const { data, error } = await supabase
         .from("solicitudes_servicio")
         .select(
-          "id, estado, fecha_solicitud, proyecto, perfiles(nombre_completo, avatar_url)",
+          `
+          id, 
+          estado, 
+          fecha_solicitud, 
+          proyecto, 
+          perfiles:cliente_id (
+            nombre_completo, 
+            avatar_url
+          )
+        `,
         )
-        .order("fecha_solicitud", { ascending: false })) as unknown as {
-        data: Solicitud[];
-        error: any;
-      };
+        .order("fecha_solicitud", { ascending: false });
 
       if (error) throw error;
-      setItems(data || []);
+
+      // Cast manual para que TypeScript no se queje del join
+      setItems((data as any) || []);
     } catch (error: any) {
-      console.error("Error:", error.message);
+      console.error("Error al obtener solicitudes:", error.message);
     } finally {
       setIsLoading(false);
     }
@@ -202,7 +227,6 @@ export default function SolicitudesProfesional() {
     <SafeAreaView style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
 
-      {/* Custom Header (Como en la imagen) */}
       <View style={styles.customHeader}>
         <TouchableOpacity>
           <Ionicons name="menu-outline" size={28} color={COLORS.white} />
@@ -261,13 +285,24 @@ export default function SolicitudesProfesional() {
                 item={item}
                 onPress={() =>
                   router.push({
-                    pathname: "/HU-18/solicitudDetalle",
+                    pathname: "/(profesional)/HU-18/solicitudDetalle",
                     params: { id: item.id },
                   })
                 }
               />
             )}
             contentContainerStyle={styles.listContent}
+            ListEmptyComponent={
+              <Text
+                style={{
+                  textAlign: "center",
+                  marginTop: 40,
+                  color: COLORS.textGray,
+                }}
+              >
+                No hay solicitudes disponibles por ahora.
+              </Text>
+            }
           />
         )}
       </View>
@@ -275,6 +310,7 @@ export default function SolicitudesProfesional() {
   );
 }
 
+// Mantenemos tus estilos exactamente igual
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   customHeader: {
@@ -320,32 +356,30 @@ const styles = StyleSheet.create({
   chipText: { color: "#64748B", fontWeight: "600", fontSize: 14 },
   chipTextActive: { color: COLORS.white },
   listContent: { paddingBottom: 20, paddingTop: 10 },
-  //bmñkbnxñn
   card: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#FFFFFF",
     borderRadius: 16,
-    paddingHorizontal: 16, // Aseguramos el padding horizontal
-    paddingVertical: 12, // Aseguramos el padding vertical
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     marginBottom: 12,
     elevation: 2,
     shadowColor: "#000",
     shadowOpacity: 0.05,
-    height: 100, // Fijamos la altura para uniformidad total
+    height: 100,
   },
   avatarContainer: {
-    // CLAVE: Un contenedor rígido para el alineamiento perfecto
     width: 55,
     height: 55,
-    marginRight: 15, // Espacio generoso antes del texto
+    marginRight: 15,
     position: "relative",
   },
   avatarImg: {
     width: 55,
     height: 55,
     borderRadius: 27.5,
-    backgroundColor: "#F1F5F9", // Fondo gris de respaldo
+    backgroundColor: "#F1F5F9",
   },
   iconOverlay: {
     position: "absolute",
@@ -355,28 +389,21 @@ const styles = StyleSheet.create({
     bottom: 0,
     justifyContent: "center",
     alignItems: "center",
-    zIndex: 1, // Asegura que el icono esté encima
+    zIndex: 1,
   },
-  cardInfo: {
-    flex: 1,
-    justifyContent: "center",
-  },
+  cardInfo: { flex: 1, justifyContent: "center" },
   cardName: {
     fontSize: 16,
     fontWeight: "700",
     color: "#1A4670",
     marginBottom: 2,
   },
-  cardProject: {
-    fontSize: 14,
-    color: "#475569",
-    marginBottom: 4,
-  },
+  cardProject: { fontSize: 14, color: "#475569", marginBottom: 4 },
   cardDate: { fontSize: 12, color: "#64748B" },
   cardRight: {
     alignItems: "flex-end",
     justifyContent: "center",
-    marginLeft: 10, // Espacio antes del badge
+    marginLeft: 10,
   },
   badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
   badgeText: { fontSize: 11, fontWeight: "bold" },

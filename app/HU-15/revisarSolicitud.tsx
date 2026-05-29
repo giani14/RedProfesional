@@ -1,14 +1,17 @@
+import { supabase } from "@/lib/supabase"; // Asegúrate de tener este import
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import React from "react";
 import {
-    Dimensions,
-    Image,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Dimensions,
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -26,6 +29,7 @@ const COLORS = {
 };
 
 export default function RevisarSolicitud() {
+  const [isSending, setIsSending] = React.useState(false);
   const router = useRouter();
   // Recibimos los datos enviados desde el formulario anterior
   const {
@@ -40,10 +44,49 @@ export default function RevisarSolicitud() {
     fecha,
   } = useLocalSearchParams();
 
-  const handleSendRequest = () => {
-    // Aquí conectarías con Supabase para insertar en la tabla 'solicitudes'
-    console.log("Solicitud enviada oficialmente");
-    router.push("/HU-05/asigProfe"); // Reutilizamos tu pantalla de éxito
+  const handleSendRequest = async () => {
+    try {
+      setIsSending(true);
+
+      // 1. Obtener el usuario actual (cliente)
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (userError || !user) {
+        Alert.alert("Error", "Debes iniciar sesión para enviar una solicitud.");
+        return;
+      }
+
+      // 2. Registrar en la tabla 'solicitudes_servicio'
+      const { error: insertError } = await supabase
+        .from("solicitudes_servicio")
+        .insert([
+          {
+            cliente_id: user.id, // ID de quien envía
+            proyecto: servicio, // Mapeado a la columna 'proyecto'
+            descripcion_problema: descripcion, // Mapeado a 'descripcion_problema'
+            estado: "pendiente", // Estado inicial
+            // Nota: El profesional_id se usará en la siguiente etapa para que
+            // el profesional cree una 'propuesta_servicio' vinculada a esta solicitud.
+          },
+        ]);
+
+      if (insertError) throw insertError;
+
+      // 3. Éxito y navegación
+      console.log("Solicitud registrada en la BD correctamente");
+      router.push("/HU-15/solicitudEnviada");
+    } catch (err) {
+      console.error("Error al registrar solicitud:", err);
+      Alert.alert(
+        "Error",
+        "No pudimos registrar tu solicitud. Intenta más tarde.",
+      );
+    } finally {
+      setIsSending(false);
+    }
   };
 
   return (
@@ -129,14 +172,24 @@ export default function RevisarSolicitud() {
 
         {/* BOTONES DE ACCIÓN */}
         <View style={styles.actionContainer}>
-          <TouchableOpacity style={styles.btnSend} onPress={handleSendRequest}>
-            <Text style={styles.btnSendText}>Enviar solicitud</Text>
-            <Ionicons
-              name="send"
-              size={18}
-              color="white"
-              style={styles.sendIcon}
-            />
+          <TouchableOpacity
+            style={[styles.btnSend, isSending && { opacity: 0.7 }]}
+            onPress={handleSendRequest}
+            disabled={isSending}
+          >
+            {isSending ? (
+              <ActivityIndicator color="white" />
+            ) : (
+              <>
+                <Text style={styles.btnSendText}>Enviar solicitud</Text>
+                <Ionicons
+                  name="send"
+                  size={18}
+                  color="white"
+                  style={styles.sendIcon}
+                />
+              </>
+            )}
           </TouchableOpacity>
 
           <TouchableOpacity

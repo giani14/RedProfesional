@@ -79,11 +79,11 @@ export default function Index() {
 
   // Si hay sesión, redirigir según el Rol
   switch (role) {
-    case "admin":
+    case "Administrador":
       return <Redirect href="/(admin)" />;
-    case "profesional":
+    case "Profesional":
       return <Redirect href="/(profesional)" />;
-    case "cliente":
+    case "Cliente":
     default:
       return <Redirect href="/(cliente)" />;
   }

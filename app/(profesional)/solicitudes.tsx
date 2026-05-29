@@ -30,7 +30,7 @@ const COLORS = {
   rejectedText: "#B91C1C",
 };
 
-type EstadoSolicitud = "pendiente" | "aceptada" | "rechazada";
+type EstadoSolicitud = "pendiente" | "aceptada" | "rechazada" | "en_proceso" | "finalizado";
 
 interface Solicitud {
   id: string;
@@ -65,6 +65,16 @@ const estadoStyles: Record<
     color: COLORS.rejectedText,
     label: "Rechazada",
   },
+  en_proceso: {
+    bg: "#DBEAFE",
+    color: "#1E40AF",
+    label: "En Proceso",
+  },
+  finalizado: {
+    bg: "#D1FAE5",
+    color: "#065F46",
+    label: "Finalizado",
+  },
 };
 
 function formatearFecha(fechaIso: string): string {
@@ -84,7 +94,14 @@ function SolicitudCard({
   item: Solicitud;
   onPress: () => void;
 }) {
-  const badge = estadoStyles[item.estado];
+  console.log("Estado recibido:", item.estado);
+
+  // Normalización segura para evitar "Cannot read property 'bg' of undefined"
+  const estadoSeguro = String(item.estado ?? "pendiente")
+    .toLowerCase()
+    .trim() as EstadoSolicitud;
+
+  const badge = estadoStyles[estadoSeguro] ?? estadoStyles.pendiente;
 
   // SOLUCIÓN: Usamos un estado para la imagen. Empezamos con una imagen por defecto
   const [imageUri, setImageUri] = useState<string>(
@@ -162,12 +179,15 @@ export default function SolicitudesProfesional() {
 
   const solicitudesMostrar = useMemo(() => {
     if (filtroActivo === "Todas") return items;
-    const mapa: Record<string, EstadoSolicitud> = {
-      Pendientes: "pendiente",
-      Aceptadas: "aceptada",
-      Rechazadas: "rechazada",
+    const mapa: Record<string, EstadoSolicitud[]> = {
+      Pendientes: ["pendiente"],
+      Aceptadas: ["aceptada", "en_proceso", "finalizado"], // Agrupa todos los estados post-aceptación
+      Rechazadas: ["rechazada"],
     };
-    return items.filter((s) => s.estado === mapa[filtroActivo]);
+    return items.filter((s) => {
+      const estadoSeguro = String(s.estado ?? "pendiente").toLowerCase().trim() as EstadoSolicitud;
+      return mapa[filtroActivo]?.includes(estadoSeguro);
+    });
   }, [filtroActivo, items]);
 
   useFocusEffect(

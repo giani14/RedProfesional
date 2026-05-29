@@ -30,7 +30,6 @@ const COLORS = {
   rejectedText: "#B91C1C",
 };
 
-<<<<<<< HEAD
 // Ajustamos los tipos para que coincidan con las Mayúsculas de tu base de datos si es necesario
 type EstadoSolicitud =
   | "pendiente"
@@ -39,9 +38,7 @@ type EstadoSolicitud =
   | "Pendiente"
   | "Aceptada"
   | "Rechazada";
-=======
-type EstadoSolicitud = "pendiente" | "aceptada" | "rechazada" | "en_proceso" | "finalizado";
->>>>>>> origin/hu-21
+
 
 interface Solicitud {
   id: string;
@@ -326,7 +323,11 @@ export default function SolicitudesProfesional() {
                 item={item}
                 onPress={() =>
                   router.push({
+<<<<<<< HEAD
                     pathname: "/(profesional)/HU-18/solicitudDetalle",
+=======
+                    pathname: "../HU-18/solicitudDetalle",
+>>>>>>> origin/HU-22
                     params: { id: item.id },
                   })
                 }

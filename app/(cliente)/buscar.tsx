@@ -79,6 +79,7 @@ export default function BuscarClienteScreen() {
           .select("*")
           .eq("rol", "Profesional")
           .eq("estado", "activo");
+          console.log("Datos obtenidos de Supabase:", data);
 
         if (error) throw error;
 

@@ -1,30 +1,26 @@
 import { supabase } from "@/lib/supabase";
 import { Ionicons } from "@expo/vector-icons";
-import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
 import { Stack, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  BackHandler,
-  Image,
-  Modal,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    Image,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from "react-native";
 
-export default function EditarDatosPersonales() {
+export default function EditarPerfilProfesional() {
   const router = useRouter();
-  const [modalVisible, setModalVisible] = useState(false);
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
   const [idUsuario, setIdUsuario] = useState<string | null>(null);
-  const [obteniendoGPS, setObteniendoGPS] = useState(false);2
+  const [obteniendoGPS, setObteniendoGPS] = useState(false);
 
   const [nombre, setNombre] = useState("");
   const [correo, setCorreo] = useState("");
@@ -39,25 +35,9 @@ const [descripcion, setDescripcion] = useState("");
 
   const [hayCambios, setHayCambios] = useState(false);
   const [intentoGuardar, setIntentoGuardar] = useState(false);
-  const [rol, setRol] = useState("profesional");
   useEffect(() => {
-    obtenerPerfil();
-
-    // Manejo del botón físico de atrás (Android)
-    const backAction = () => {
-      if (hayCambios) {
-        setModalVisible(true); // Usamos tu nuevo Modal en lugar del Alert nativo
-        return true;
-      }
-      return false;
-    };
-
-    const backHandler = BackHandler.addEventListener(
-      "hardwareBackPress",
-      backAction,
-    );
-    return () => backHandler.remove();
-  }, [hayCambios]);
+  obtenerPerfil();
+  }, []);
 
   const obtenerPerfil = async () => {
     try {
@@ -78,17 +58,33 @@ const [descripcion, setDescripcion] = useState("");
         .single();
 
       if (data) {
-  setRol(data.rol || "cliente");
-
   setNombre(data.nombre_completo || "");
-        setCorreo(user.email || "");
-        setTelefono(data.telefono || "");
-        setUbicacion(data.ubicacion || "");
-        setProfesion(data.profesion || "");
-        setExperiencia(data.experiencia || "");
-        setDescripcion(data.descripcion || "");
-        if (data.avatar_url) setFotoPerfil(data.avatar_url);
-      }
+  setCorreo(user.email || "");
+  setTelefono(data.telefono || "");
+  setUbicacion(data.ubicacion || "");
+
+  if (data.avatar_url) {
+    setFotoPerfil(data.avatar_url);
+  }
+}
+
+const { data: infoProfesional } = await supabase
+  .from("profesionales_info")
+  .select("*")
+  .eq("profesional_id", user.id)
+  .single();
+
+if (infoProfesional) {
+  setProfesion(infoProfesional.titulo_especialidad || "");
+
+  setExperiencia(
+    infoProfesional.experiencia
+      ? String(infoProfesional.experiencia)
+      : ""
+  );
+
+  setDescripcion(infoProfesional.descripcion || "");
+}
     } catch (error) {
       Alert.alert("Error", "No se pudieron cargar los datos.");
     } finally {
@@ -135,19 +131,6 @@ const [descripcion, setDescripcion] = useState("");
   const formularioInvalido =
     errores.nombre || errores.telefono || errores.ubicacion;
 
-  const seleccionarImagen = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.5,
-    });
-    if (!result.canceled) {
-      setFotoPerfil(result.assets[0].uri);
-      setHayCambios(true);
-    }
-  };
-
   const manejarGuardar = async () => {
     setIntentoGuardar(true);
     if (formularioInvalido) {
@@ -158,16 +141,39 @@ const [descripcion, setDescripcion] = useState("");
     try {
       setGuardando(true);
       const { error } = await supabase.from("perfiles").upsert({
-        id: idUsuario,
-        nombre_completo: nombre.trim(),
-        telefono: telefono.trim(),
-        ubicacion: ubicacion.trim(),
-        profesion: profesion.trim(),
-        experiencia: experiencia.trim(),
-        descripcion: descripcion.trim(),
-        avatar_url: fotoPerfil,
-        updated_at: new Date().toISOString(), // Corrección: ISO String para Supabase
-      });
+  id: idUsuario,
+  nombre_completo: nombre.trim(),
+  telefono: telefono.trim(),
+  ubicacion: ubicacion.trim(),
+  avatar_url: fotoPerfil,
+  updated_at: new Date().toISOString(),
+});
+
+const { data: existeRegistro } = await supabase
+  .from("profesionales_info")
+  .select("id")
+  .eq("profesional_id", idUsuario)
+  .maybeSingle();
+
+if (existeRegistro) {
+  await supabase
+    .from("profesionales_info")
+    .update({
+      titulo_especialidad: profesion.trim(),
+      experiencia: Number(experiencia),
+      descripcion: descripcion.trim(),
+    })
+    .eq("profesional_id", idUsuario);
+} else {
+  await supabase
+    .from("profesionales_info")
+    .insert({
+      profesional_id: idUsuario,
+      titulo_especialidad: profesion.trim(),
+      experiencia: Number(experiencia),
+      descripcion: descripcion.trim(),
+    });
+}
 
       if (!error) {
         router.push({
@@ -192,7 +198,6 @@ const [descripcion, setDescripcion] = useState("");
     );
   }
 
-if (rol.toLowerCase() === "profesional") {
   return (
     <>
       <ScrollView
@@ -416,185 +421,7 @@ if (rol.toLowerCase() === "profesional") {
       </ScrollView>
     </>
   );
-}
 
-  return (
-    <>
-      <ScrollView
-        style={styles.contenedor}
-        contentContainerStyle={{ paddingBottom: 40 }}
-      >
-        <Stack.Screen options={{ headerShown: false }} />
-
-        <View style={styles.header}>
-          <TouchableOpacity
-            onPress={() => (hayCambios ? setModalVisible(true) : router.back())}
-          >
-            <Ionicons name="arrow-back" size={24} color="white" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitulo}>Editar datos personales</Text>
-        </View>
-
-        <View style={styles.cuerpo}>
-          <View style={styles.seccionFoto}>
-            <View style={styles.contenedorAvatar}>
-              <Image source={{ uri: fotoPerfil }} style={styles.avatar} />
-              <TouchableOpacity
-                style={styles.botonCamara}
-                onPress={seleccionarImagen}
-              >
-                <Ionicons name="camera" size={18} color="white" />
-              </TouchableOpacity>
-            </View>
-            <TouchableOpacity onPress={seleccionarImagen}>
-              <Text style={styles.txtCambiarFoto}>Cambiar foto</Text>
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.form}>
-            {/* Nombre */}
-            <Text style={styles.label}>Nombre completo</Text>
-            <View
-              style={[
-                styles.inputContainer,
-                intentoGuardar && errores.nombre && styles.inputErrorBorde,
-              ]}
-            >
-              <Ionicons
-                name="person-outline"
-                size={20}
-                color={intentoGuardar && errores.nombre ? "#E74C3C" : "#666"}
-              />
-              <TextInput
-                style={styles.input}
-                value={nombre}
-                onChangeText={(txt) => {
-                  setNombre(txt);
-                  setHayCambios(true);
-                }}
-                placeholder="Ej. Juan Pérez"
-              />
-            </View>
-            {intentoGuardar && errores.nombre && (
-              <Text style={styles.errorTxt}>El nombre es obligatorio.</Text>
-            )}
-
-            {/* Teléfono */}
-            <Text style={styles.label}>Teléfono</Text>
-            <View
-              style={[
-                styles.inputContainer,
-                intentoGuardar && errores.telefono && styles.inputErrorBorde,
-              ]}
-            >
-              <Ionicons
-                name="call-outline"
-                size={20}
-                color={intentoGuardar && errores.telefono ? "#E74C3C" : "#666"}
-              />
-              <TextInput
-                style={styles.input}
-                value={telefono}
-                keyboardType="phone-pad"
-                onChangeText={(txt) => {
-                  setTelefono(txt);
-                  setHayCambios(true);
-                }}
-                placeholder="77123456"
-                maxLength={8}
-              />
-            </View>
-            {intentoGuardar && errores.telefono && (
-              <Text style={styles.errorTxt}>Número no válido (8 dígitos).</Text>
-            )}
-
-            {/* Ubicación */}
-            <Text style={styles.label}>Ubicación</Text>
-            <View
-              style={[
-                styles.inputContainer,
-                intentoGuardar && errores.ubicacion && styles.inputErrorBorde,
-              ]}
-            >
-              <Ionicons
-                name="location-outline"
-                size={20}
-                color={intentoGuardar && errores.ubicacion ? "#E74C3C" : "#666"}
-              />
-              <TextInput
-                style={styles.input}
-                value={ubicacion}
-                onChangeText={(txt) => {
-                  setUbicacion(txt);
-                  setHayCambios(true);
-                }}
-                placeholder="Ciudad, País"
-              />
-              <TouchableOpacity
-                onPress={obtenerUbicacionActual}
-                disabled={obteniendoGPS}
-              >
-                {obteniendoGPS ? (
-                  <ActivityIndicator size="small" color="#FFB100" />
-                ) : (
-                  <Ionicons name="locate" size={20} color="#007AFF" />
-                )}
-              </TouchableOpacity>
-            </View>
-
-            <TouchableOpacity
-              style={[styles.btnGuardar, guardando && styles.btnDeshabilitado]}
-              onPress={manejarGuardar}
-              disabled={guardando}
-            >
-              {guardando ? (
-                <ActivityIndicator color="white" />
-              ) : (
-                <Text style={styles.btnTexto}>Guardar cambios</Text>
-              )}
-            </TouchableOpacity>
-          </View>
-        </View>
-      </ScrollView>
-
-      <Modal
-        animationType="fade"
-        transparent={true}
-        visible={modalVisible}
-        onRequestClose={() => setModalVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalView}>
-            <TouchableOpacity
-              style={styles.closeIcon}
-              onPress={() => setModalVisible(false)}
-            >
-              <Ionicons name="close" size={24} color="#1A4670" />
-            </TouchableOpacity>
-            <Text style={styles.modalTitle}>Descartar cambios</Text>
-            <Text style={styles.modalText}>
-              Tienes cambios sin guardar.{"\n"}¿Seguro que deseas salir?
-            </Text>
-            <TouchableOpacity
-              style={styles.btnSeguir}
-              onPress={() => setModalVisible(false)}
-            >
-              <Text style={styles.btnSeguirText}>Seguir editando</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.btnDescartar}
-              onPress={() => {
-                setModalVisible(false);
-                router.back();
-              }}
-            >
-              <Text style={styles.btnDescartarText}>Descartar cambios</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-    </>
-  );
 }
 
 const styles = StyleSheet.create({

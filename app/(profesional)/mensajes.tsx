@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import { Stack } from "expo-router";
+import { Stack, router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -155,7 +155,15 @@ export default function MensajesProfesional() {
               ultimoMensaje={item.ultimo}
               fecha={item.fecha}
               leido={item.leido}
-              onPress={() => console.log(`Abrir chat ${item.id}`)}
+              onPress={() =>
+  router.push({
+    pathname: "/HU-19/ChatScreen" as any,
+    params: {
+      conversationId: item.id,
+      nombre: item.nombre,
+    },
+  })
+}
             />
           )}
           ListEmptyComponent={

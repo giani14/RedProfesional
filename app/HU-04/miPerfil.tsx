@@ -46,10 +46,25 @@ export default function MiPerfil() {
 
       // INFO PROFESIONAL
     
+const { data: infoProfesional } = await supabase
+  .from("profesionales_info")
+  .select("*")
+  .eq("profesional_id", user.id)
+  .single();
+
 if (perfilData) {
   setPerfil({
     ...perfilData,
     email: user.email,
+
+    profesion:
+      infoProfesional?.titulo_especialidad || "",
+
+    experiencia:
+      infoProfesional?.experiencia || "",
+
+    descripcion:
+      infoProfesional?.descripcion || "",
   });
 
   setRol(perfilData.rol || "cliente");
@@ -244,6 +259,25 @@ if (perfilData) {
               </View>
             </View>
 
+<View style={styles.filaDetalle}>
+  <Ionicons
+    name="mail-outline"
+    size={24}
+    color="#1A4670"
+    style={styles.iconoDetalle}
+  />
+
+  <View>
+    <Text style={styles.labelDetalle}>
+      Correo
+    </Text>
+
+    <Text style={styles.valorDetalle}>
+      {perfil?.email || "No registrado"}
+    </Text>
+  </View>
+</View>
+
             <View
               style={styles.filaDetalle}
             >
@@ -348,10 +382,10 @@ if (perfilData) {
           <TouchableOpacity
   style={styles.btnEditar}
   onPress={() =>
-    router.push(
-      "/HU-04/EditarDatosPersonales"
-    )
-  }
+  router.push(
+    "/HU-04/EditarPerfilProfesional"
+  )
+}
 >
   <Text
     style={
@@ -363,24 +397,7 @@ if (perfilData) {
 </TouchableOpacity>
 
 {/* BOTÓN ANTIGUO */}
-{/*
-          <TouchableOpacity
-            style={styles.btnEditar}
-            onPress={() =>
-              router.push(
-                "/HU-04/EditarDatosPersonales"
-              )
-            }
-          >
-            <Text
-              style={
-                styles.btnEditarTexto
-              }
-            >
-              Editar perfil profesional
-            </Text>
-          </TouchableOpacity>
-          */}
+
         </ScrollView>
       </View>
     );
@@ -389,85 +406,7 @@ if (perfilData) {
   // =============================
   // PERFIL CLIENTE
   // =============================
-{/*
-  return (
-    <View
-      style={styles.contenedorPrincipal}
-    >
-      <Stack.Screen
-        options={{
-          headerShown: false,
-        }}
-      />
 
-      <View style={styles.headerAzul}>
-        <TouchableOpacity
-          onPress={() =>
-            router.push(
-              "/(cliente)/perfil"
-            )
-          }
-          style={styles.botonBack}
-        >
-          <Ionicons
-            name="arrow-back"
-            size={24}
-            color="white"
-          />
-        </TouchableOpacity>
-
-        <Text style={styles.tituloHeader}>
-          Mi perfil
-        </Text>
-      </View>
-
-      <ScrollView
-        showsVerticalScrollIndicator={
-          false
-        }
-      >
-        <View style={styles.infoCentral}>
-          <View
-            style={
-              styles.contenedorAvatar
-            }
-          >
-            <Image
-              source={{
-                uri:
-                  perfil?.avatar_url ||
-                  "https://via.placeholder.com/150",
-              }}
-              style={styles.avatar}
-            />
-          </View>
-
-          <Text
-            style={
-              styles.nombreUsuario
-            }
-          >
-            {perfil?.nombre_completo ||
-              "Usuario"}
-          </Text>
-
-          <View
-            style={
-              styles.tagProfesional
-            }
-          >
-            <Text
-              style={styles.tagTexto}
-            >
-              Cliente
-            </Text>
-          </View>
-        </View>
-      </ScrollView>
-    </View>
-  );
-}
-*/}
   return (
     <View style={styles.contenedorPrincipal}>
       <Stack.Screen options={{ headerShown: false }} />
@@ -511,8 +450,10 @@ if (perfilData) {
           </Text>
 
           <View style={styles.tagProfesional}>
-            <Text style={styles.tagTexto}>Profesional</Text>
-          </View>
+  <Text style={styles.tagTexto}>
+    {perfil?.rol || "Cliente"}
+  </Text>
+</View>
         </View>
 
         {/* Detalles de Contacto */}
@@ -581,7 +522,7 @@ if (perfilData) {
         {/* Botón Editar Datos Personales */}
         <TouchableOpacity
           style={styles.btnEditar}
-          onPress={() => router.push("/HU-04/EditarDatosPersonales")}
+          onPress={() => router.push("/HU-04/EditarPerfilCliente")}
         >
           <Text style={styles.btnEditarTexto}>Editar datos personales</Text>
         </TouchableOpacity>

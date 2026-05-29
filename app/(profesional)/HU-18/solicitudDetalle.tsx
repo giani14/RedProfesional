@@ -2,7 +2,6 @@ import { AttachmentItem } from "@/components/solicitud/AttachmentItem";
 import { ConfirmacionModal } from "@/components/solicitud/ConfirmacionModal";
 import { InfoSection } from "@/components/solicitud/InfoSection";
 import { ProfileCard } from "@/components/solicitud/ProfileCard";
-import { EstadoSolicitud } from "@/components/solicitud/StatusBadge";
 import { supabase } from "@/lib/supabase";
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
@@ -34,7 +33,7 @@ interface Solicitud {
   id: string;
   cliente_id: string;
   profesional_id: string;
-  estado: EstadoSolicitud;
+  estado: string;
   descripcion_problema: string;
   fecha_solicitud: string;
   actualizado_at: string;
@@ -78,9 +77,10 @@ const formatearFecha = (fechaStr: string, locale: string = "es-ES"): string => {
 export default function SolicitudDetalle() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const [estado, setEstado] = useState<EstadoSolicitud>("pendiente");
+  const [estado, setEstado] = useState<string>("pendiente");
   const [modalAceptar, setModalAceptar] = useState(false);
   const [modalRechazar, setModalRechazar] = useState(false);
+  const [modalFinalizar, setModalFinalizar] = useState(false);
   const [motivoRechazo, setMotivoRechazo] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
@@ -132,11 +132,11 @@ export default function SolicitudDetalle() {
       const { error } = await supabase
         .from("solicitudes_servicio")
         .update({
-          estado: "aceptada",
+          estado: "en_proceso", // El profesional acepta e inicia el trabajo
           fecha_aceptada_rechazada: new Date().toISOString(),
         })
         .eq("id", id);
-      setEstado("aceptada");
+      setEstado("en_proceso");
       if (error) throw error;
     } catch (error: any) {
       console.error("Error actualizando estado:", error.message);
@@ -162,6 +162,24 @@ export default function SolicitudDetalle() {
     } finally {
       setModalRechazar(false);
       setMotivoRechazo("");
+    }
+  };
+
+  const confirmarFinalizar = async () => {
+    try {
+      const { error } = await supabase
+        .from("solicitudes_servicio")
+        .update({
+          estado: "finalizado", // Termina el trabajo
+          actualizado_at: new Date().toISOString(),
+        })
+        .eq("id", id);
+      setEstado("finalizado");
+      if (error) throw error;
+    } catch (error: any) {
+      console.error("Error al finalizar servicio:", error.message);
+    } finally {
+      setModalFinalizar(false);
     }
   };
 
@@ -204,7 +222,11 @@ export default function SolicitudDetalle() {
         <ProfileCard
           nombre={items?.perfiles?.nombre_completo || "Cargando..."}
           rol={items?.perfiles?.ubicacion || "Cargando..."}
+<<<<<<< HEAD:app/(profesional)/HU-18/solicitudDetalle.tsx
           estado={items?.estado || "pendiente"}
+=======
+          estado={(items?.estado as any) || "pendiente"}
+>>>>>>> origin/hu-21:app/HU-18/solicitudDetalle.tsx
         />
 
         <InfoSection
@@ -252,6 +274,19 @@ export default function SolicitudDetalle() {
           </View>
         )}
 
+        {(estado === "aceptada" || estado === "en_proceso") && (
+          <View style={styles.actions}>
+            <TouchableOpacity
+              style={styles.btnFinalizar}
+              onPress={() => setModalFinalizar(true)}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="checkmark-done" size={20} color={COLORS.white} />
+              <Text style={styles.btnAceptarText}>Finalizar servicio</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
         {estado === "aceptada" && (
           <View style={[styles.banner, { backgroundColor: COLORS.successBg }]}>
             <Ionicons
@@ -262,6 +297,25 @@ export default function SolicitudDetalle() {
             <Text style={[styles.bannerText, { color: COLORS.successText }]}>
               Solicitud aceptada el{" "}
               {formatearFecha(items?.fecha_aceptada_rechazada || "")}
+            </Text>
+          </View>
+        )}
+
+        {estado === "en_proceso" && (
+          <View style={[styles.banner, { backgroundColor: "#DBEAFE" }]}>
+            <Ionicons name="time" size={20} color="#1E40AF" />
+            <Text style={[styles.bannerText, { color: "#1E40AF" }]}>
+              Servicio en proceso. El cliente espera tu trabajo.
+            </Text>
+          </View>
+        )}
+
+        {estado === "finalizado" && (
+          <View style={[styles.banner, { backgroundColor: COLORS.successBg }]}>
+            <Ionicons name="checkmark-done-circle" size={20} color={COLORS.successText} />
+            <Text style={[styles.bannerText, { color: COLORS.successText }]}>
+              Servicio finalizado el{" "}
+              {formatearFecha(items?.actualizado_at || new Date().toISOString())}
             </Text>
           </View>
         )}
@@ -304,6 +358,14 @@ export default function SolicitudDetalle() {
         onChangeInputValue={setMotivoRechazo}
         inputPlaceholder="Describe la razón del rechazo"
         inputMaxLength={50}
+      />
+
+      <ConfirmacionModal
+        visible={modalFinalizar}
+        titulo="¿Finalizar servicio?"
+        descripcion="Al confirmar, la solicitud pasará a estado finalizado y el cliente podrá calificar tu trabajo."
+        onConfirm={confirmarFinalizar}
+        onCancel={() => setModalFinalizar(false)}
       />
     </SafeAreaView>
   );
@@ -350,6 +412,15 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   btnAceptarText: { color: COLORS.white, fontSize: 15, fontWeight: "bold" },
+  btnFinalizar: {
+    backgroundColor: "#10B981", // Verde para finalizar
+    paddingVertical: 14,
+    borderRadius: 10,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 8,
+  },
   btnRechazar: {
     backgroundColor: COLORS.white,
     paddingVertical: 14,

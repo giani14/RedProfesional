@@ -96,25 +96,37 @@ export default function SolicitudDetalle() {
   async function fetchData() {
     try {
       setIsLoading(true);
-      const [{ data, error }] = await Promise.all([
-        supabase
-          .from("solicitudes_servicio")
-          .select("*, perfiles (nombre_completo, ubicacion)")
-          .eq("id", id)
-          .single(),
-        new Promise((resolve) => setTimeout(resolve, 1000)),
-      ]);
-      setEstado(data?.estado || "pendiente");
+      // Corregimos la desestructuración de la promesa
+      const { data, error } = await supabase
+        .from("solicitudes_servicio")
+        .select("*, perfiles:cliente_id (nombre_completo, ubicacion)") // Usamos el alias cliente_id
+        .eq("id", id)
+        .single();
+
       if (error) throw error;
-      setItems(data || null);
-      console.log("Datos obtenidos para id:", items);
+
+      if (data) {
+        setItems(data);
+        setEstado(data.estado);
+      }
     } catch (error: any) {
       console.error("Error obteniendo datos:", error.message);
     } finally {
       setIsLoading(false);
     }
   }
+  // Corregimos la función de fecha para que no rompa con datos reales de la DB
+  const formatearFechaReal = (fechaStr: string): string => {
+    if (!fechaStr) return "Sin fecha";
+    const fecha = new Date(fechaStr);
+    if (isNaN(fecha.getTime())) return "Fecha pendiente";
 
+    return fecha.toLocaleDateString("es-ES", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    });
+  };
   const confirmarAceptar = async () => {
     try {
       const { error } = await supabase
@@ -156,15 +168,13 @@ export default function SolicitudDetalle() {
   if (isLoading) {
     return (
       <SafeAreaView style={styles.container}>
-        <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={COLORS.primaryBlue} />
-          <Text style={styles.loadingText}>Cargando solicitud...</Text>
+          <Text style={styles.loadingText}>Cargando detalle...</Text>
         </View>
       </SafeAreaView>
     );
   }
-
   return (
     <SafeAreaView style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
@@ -192,8 +202,8 @@ export default function SolicitudDetalle() {
         <Text style={styles.title}>Detalle de solicitud</Text>
 
         <ProfileCard
-          nombre={items?.perfiles.nombre_completo || "Cargando..."}
-          rol={items?.perfiles.ubicacion || "Cargando..."}
+          nombre={items?.perfiles?.nombre_completo || "Cargando..."}
+          rol={items?.perfiles?.ubicacion || "Cargando..."}
           estado={items?.estado || "pendiente"}
         />
 

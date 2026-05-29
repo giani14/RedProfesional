@@ -1,19 +1,22 @@
+import { supabase } from "@/lib/supabase"; // Importa tu cliente de Supabase
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react"; // Añadimos useEffect
 import {
-    FlatList,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  FlatList,
+  RefreshControl,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 const COLORS = {
-  primaryBlue: "#123F78", // Azul corporativo de RedProfesional
-  accentGold: "#FBBF24", // Dorado para indicadores de pestaña
+  primaryBlue: "#123F78",
+  accentGold: "#FBBF24",
   textMain: "#123F78",
   textSecondary: "#6B7280",
   bgLight: "#F9FAFB",
@@ -26,28 +29,57 @@ const COLORS = {
 
 export default function PedidosScreen() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState("Pendientes");
+  const [activeTab, setActiveTab] = useState("pendientes"); // En minúsculas para coincidir con la BD
   const [solicitudes, setSolicitudes] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  // Simulación de carga de datos (Sustituir con tu consulta a Supabase)
-  const MOCK_DATA = [
-    {
-      id: "1",
-      nombre: "Carlos Mendoza",
-      especialidad: "Desarrollo Web",
-      status: "Pendiente",
-      fecha: "15 Mayo",
-      monto: "2500 Bs",
-    },
-    {
-      id: "2",
-      nombre: "Juan Pérez",
-      servicio: "Instalación Eléctrica",
-      status: "En Proceso",
-      fecha: "10 Mayo",
-      monto: "500 Bs",
-    },
-  ];
+  const fetchSolicitudes = async () => {
+    try {
+      setLoading(true);
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Ajustamos el nombre del estado para que coincida con la base de datos
+      let estadoDB = activeTab.toLowerCase();
+      if (estadoDB === "pendientes") estadoDB = "pendiente"; // Corrección de plural a singular
+
+      const { data, error } = await supabase
+        .from("solicitudes_servicio")
+        .select(
+          `
+          id,
+          proyecto,
+          descripcion_problema,
+          estado,
+          fecha_solicitud
+        `,
+        )
+        .eq("cliente_id", user.id)
+        .eq("estado", estadoDB) // Enviamos el valor corregido
+        .order("fecha_solicitud", { ascending: false });
+
+      if (error) throw error;
+      setSolicitudes(data || []);
+    } catch (error: any) {
+      // Esto mostrará el error detallado en tu consola para saber qué falló exactamente
+      console.error("Error detallado:", error.message, error.details);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+  // 2. Ejecutar la carga cuando cambie la pestaña o al iniciar
+  useEffect(() => {
+    fetchSolicitudes();
+  }, [activeTab]);
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchSolicitudes();
+  };
 
   const renderItem = ({ item }: any) => (
     <TouchableOpacity style={styles.card}>
@@ -56,15 +88,17 @@ export default function PedidosScreen() {
           <Ionicons name="person" size={30} color="#CBD5E1" />
         </View>
         <View style={styles.info}>
-          <Text style={styles.profeName}>{item.nombre || item.profe}</Text>
+          <Text style={styles.profeName}>
+            {item.profesionales_info?.nombre_completo || "Profesional"}
+          </Text>
           <Text style={styles.profeService}>
-            {item.especialidad || item.servicio}
+            {item.proyecto || "Servicio solicitado"}
           </Text>
         </View>
         <View
           style={[
             styles.statusBadge,
-            item.status === "Pendiente"
+            item.estado === "pendientes"
               ? styles.badgePending
               : styles.badgeActive,
           ]}
@@ -72,12 +106,15 @@ export default function PedidosScreen() {
           <Text
             style={[
               styles.statusText,
-              item.status === "Pendiente"
-                ? { color: COLORS.pendingText }
-                : { color: COLORS.activeText },
+              {
+                color:
+                  item.estado === "pendientes"
+                    ? COLORS.pendingText
+                    : COLORS.activeText,
+              },
             ]}
           >
-            {item.status}
+            {item.estado.charAt(0).toUpperCase() + item.estado.slice(1)}
           </Text>
         </View>
       </View>
@@ -91,9 +128,12 @@ export default function PedidosScreen() {
             size={16}
             color={COLORS.textSecondary}
           />
-          <Text style={styles.footerDate}>{item.fecha}</Text>
+          <Text style={styles.footerDate}>
+            {new Date(item.created_at).toLocaleDateString()}
+          </Text>
         </View>
-        <Text style={styles.footerPrice}>{item.monto}</Text>
+        {/* El monto vendrá de la tabla propuestas_servicio en el siguiente paso */}
+        <Text style={styles.footerPrice}>Pendiente de Cotización</Text>
       </View>
     </TouchableOpacity>
   );
@@ -106,7 +146,6 @@ export default function PedidosScreen() {
         backgroundColor={COLORS.primaryBlue}
       />
 
-      {/* HEADER AZUL SUPERIOR (Waybar integrado) */}
       <View style={styles.blueHeader}>
         <SafeAreaView edges={["top"]}>
           <View style={styles.headerContent}>
@@ -121,18 +160,20 @@ export default function PedidosScreen() {
         </SafeAreaView>
       </View>
 
-      {/* TABS DE NAVEGACIÓN */}
       <View style={styles.tabsContainer}>
         {["Pendientes", "En Proceso", "Finalizados"].map((tab) => (
           <TouchableOpacity
             key={tab}
-            style={[styles.tab, activeTab === tab && styles.activeTab]}
-            onPress={() => setActiveTab(tab)}
+            style={[
+              styles.tab,
+              activeTab === tab.toLowerCase() && styles.activeTab,
+            ]}
+            onPress={() => setActiveTab(tab.toLowerCase())}
           >
             <Text
               style={[
                 styles.tabText,
-                activeTab === tab && styles.activeTabText,
+                activeTab === tab.toLowerCase() && styles.activeTabText,
               ]}
             >
               {tab}
@@ -141,13 +182,29 @@ export default function PedidosScreen() {
         ))}
       </View>
 
-      <FlatList
-        data={MOCK_DATA}
-        renderItem={renderItem}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.listPadding}
-        showsVerticalScrollIndicator={false}
-      />
+      {loading && !refreshing ? (
+        <ActivityIndicator
+          size="large"
+          color={COLORS.primaryBlue}
+          style={{ marginTop: 50 }}
+        />
+      ) : (
+        <FlatList
+          data={solicitudes}
+          renderItem={renderItem}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.listPadding}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
+          ListEmptyComponent={
+            <Text style={styles.emptyText}>
+              No tienes solicitudes en este estado.
+            </Text>
+          }
+        />
+      )}
     </View>
   );
 }
@@ -219,4 +276,10 @@ const styles = StyleSheet.create({
   footerRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   footerDate: { fontSize: 13, color: COLORS.textSecondary },
   footerPrice: { fontSize: 15, fontWeight: "bold", color: COLORS.primaryBlue },
+  emptyText: {
+    textAlign: "center",
+    marginTop: 40,
+    color: COLORS.textSecondary,
+    fontSize: 16,
+  },
 });

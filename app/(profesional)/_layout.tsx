@@ -136,6 +136,14 @@ export default function ProfesionalLayout() {
           ),
         }}
       />
+      {/* --- EL TRUCO ESTÁ AQUÍ --- */}
+      {/* Ocultamos la carpeta HU-18 de la barra inferior */}
+      <Tabs.Screen
+        name="HU-18/solicitudDetalle"
+        options={{
+          href: null, // <--- Esto hace que desaparezca de la barra de navegación
+        }}
+      />
     </Tabs>
   );
 }

@@ -78,7 +78,11 @@ export default function SolicitudEnviada2() {
       <View style={styles.footer}>
         <TouchableOpacity
           style={styles.btnPrimary}
+<<<<<<< HEAD
           onPress={() => router.replace("/(cliente)/solicitudes")} // Ajusta a tu ruta de solicitudes
+=======
+          onPress={() => router.push("/(cliente)/solicitudes" as any)}
+>>>>>>> origin/HU-20/notificaciones
         >
           <Text style={styles.btnPrimaryText}>Ver mis solicitudes</Text>
         </TouchableOpacity>

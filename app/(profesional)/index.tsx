@@ -126,13 +126,13 @@ export default function ProfesionalIndex() {
         <Text style={styles.headerLogo}>
           Red<Text style={{ color: COLORS.accentGold }}>Profesional</Text>
         </Text>
-        <TouchableOpacity>
-          <Ionicons
-            name="notifications-outline"
-            size={28}
-            color={COLORS.white}
-          />
-        </TouchableOpacity>
+        <TouchableOpacity onPress={() => router.push("/HU-20" as any)}>
+  <Ionicons
+    name="notifications-outline"
+    size={28}
+    color={COLORS.white}
+  />
+</TouchableOpacity>
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -187,7 +187,7 @@ export default function ProfesionalIndex() {
             title="Subir portafolio"
             subtitle="Agrega trabajos realizados"
             color={COLORS.cardYellow}
-            onPress={() => router.push("/HU-09/subirPortafolio")}
+            onPress={() => router.push("/HU-09/subirPortafolio"as any)}
           />
 
           <QuickAccessCard
@@ -195,7 +195,7 @@ export default function ProfesionalIndex() {
             title="Editar portafolio"
             subtitle="Modifica o elimina trabajos"
             color={COLORS.cardBlue}
-            onPress={() => router.push("/HU-10/editarPortafolio")}
+            onPress={() => router.push("/HU-10/editarPortafolio" as any)}
           />
           <QuickAccessCard
             icon="search-outline"

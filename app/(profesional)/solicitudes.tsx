@@ -261,7 +261,7 @@ export default function SolicitudesProfesional() {
                 item={item}
                 onPress={() =>
                   router.push({
-                    pathname: "/HU-18/solicitudDetalle",
+                    pathname: "../HU-18/solicitudDetalle",
                     params: { id: item.id },
                   })
                 }

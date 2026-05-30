@@ -139,7 +139,23 @@ export default function ProfesionalLayout() {
       {/* --- EL TRUCO ESTÁ AQUÍ --- */}
       {/* Ocultamos la carpeta HU-18 de la barra inferior */}
       <Tabs.Screen
-        name="HU-18/solicitudDetalle"
+        name="calificar"
+        options={{
+          href: null, // <--- Esto hace que desaparezca de la barra de navegación
+        }}
+      />
+      {/* --- EL TRUCO ESTÁ AQUÍ --- */}
+      {/* Ocultamos la carpeta HU-18 de la barra inferior */}
+      <Tabs.Screen
+        name="calificacionEnviada"
+        options={{
+          href: null, // <--- Esto hace que desaparezca de la barra de navegación
+        }}
+      />
+      {/* --- EL TRUCO ESTÁ AQUÍ --- */}
+      {/* Ocultamos la carpeta HU-18 de la barra inferior */}
+      <Tabs.Screen
+        name="servicioFinalizado"
         options={{
           href: null, // <--- Esto hace que desaparezca de la barra de navegación
         }}

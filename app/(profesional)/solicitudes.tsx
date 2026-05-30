@@ -39,7 +39,6 @@ type EstadoSolicitud =
   | "Aceptada"
   | "Rechazada";
 
-
 interface Solicitud {
   id: string;
   estado: EstadoSolicitud;
@@ -83,22 +82,10 @@ const estadoStyles: Record<
     color: COLORS.rejectedText,
     label: "Rechazada",
   },
-<<<<<<< HEAD
   Rechazada: {
     bg: COLORS.rejectedBg,
     color: COLORS.rejectedText,
     label: "Rechazada",
-=======
-  en_proceso: {
-    bg: "#DBEAFE",
-    color: "#1E40AF",
-    label: "En Proceso",
-  },
-  finalizado: {
-    bg: "#D1FAE5",
-    color: "#065F46",
-    label: "Finalizado",
->>>>>>> origin/hu-21
   },
 };
 
@@ -119,20 +106,7 @@ function SolicitudCard({
   item: Solicitud;
   onPress: () => void;
 }) {
-<<<<<<< HEAD
   const badge = estadoStyles[item.estado] || estadoStyles["pendiente"];
-=======
-  console.log("Estado recibido:", item.estado);
-
-  // Normalización segura para evitar "Cannot read property 'bg' of undefined"
-  const estadoSeguro = String(item.estado ?? "pendiente")
-    .toLowerCase()
-    .trim() as EstadoSolicitud;
-
-  const badge = estadoStyles[estadoSeguro] ?? estadoStyles.pendiente;
-
-  // SOLUCIÓN: Usamos un estado para la imagen. Empezamos con una imagen por defecto
->>>>>>> origin/hu-21
   const [imageUri, setImageUri] = useState<string>(
     "https://via.placeholder.com/150/F1F5F9/94A3B8?text=%20",
   );
@@ -202,7 +176,6 @@ export default function SolicitudesProfesional() {
 
   const solicitudesMostrar = useMemo(() => {
     if (filtroActivo === "Todas") return items;
-<<<<<<< HEAD
     const mapa: Record<string, string> = {
       Pendientes: "pendiente",
       Aceptadas: "aceptada",
@@ -210,17 +183,6 @@ export default function SolicitudesProfesional() {
     };
     // Filtramos ignorando mayúsculas/minúsculas para evitar errores de la DB
     return items.filter((s) => s.estado?.toLowerCase() === mapa[filtroActivo]);
-=======
-    const mapa: Record<string, EstadoSolicitud[]> = {
-      Pendientes: ["pendiente"],
-      Aceptadas: ["aceptada", "en_proceso", "finalizado"], // Agrupa todos los estados post-aceptación
-      Rechazadas: ["rechazada"],
-    };
-    return items.filter((s) => {
-      const estadoSeguro = String(s.estado ?? "pendiente").toLowerCase().trim() as EstadoSolicitud;
-      return mapa[filtroActivo]?.includes(estadoSeguro);
-    });
->>>>>>> origin/hu-21
   }, [filtroActivo, items]);
 
   useFocusEffect(
@@ -323,11 +285,7 @@ export default function SolicitudesProfesional() {
                 item={item}
                 onPress={() =>
                   router.push({
-<<<<<<< HEAD
-                    pathname: "/(profesional)/HU-18/solicitudDetalle",
-=======
-                    pathname: "../HU-18/solicitudDetalle",
->>>>>>> origin/HU-22
+                    pathname: "/HU-18/solicitudDetalle",
                     params: { id: item.id },
                   })
                 }

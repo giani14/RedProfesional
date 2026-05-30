@@ -5,7 +5,7 @@ import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 import "react-native-reanimated";
-import { supabase } from "../lib/supabase"; // Asegúrate de que esta ruta sea correcta
+import { supabase } from "../lib/supabase";
 
 export { ErrorBoundary } from "expo-router";
 
@@ -24,32 +24,27 @@ export default function RootLayout() {
   const segments = useSegments();
   const router = useRouter();
 
-  // 1. Manejo de errores de carga de fuentes
   useEffect(() => {
     if (error) throw error;
   }, [error]);
 
-  // 2. Lógica de Autenticación y Redirección por Rol
   useEffect(() => {
     if (!loaded) return;
 
     const { data: authListener } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        // Si no hay sesión, mandarlo al index/login si intenta entrar a áreas protegidas
+        // 1. SI NO HAY SESIÓN: Solo permitimos Login, Registro y Bienvenida
         if (!session) {
-          const inAuthGroup =
-            segments[0] === "(cliente)" ||
-            segments[0] === "(profesional)" ||
-            segments[0] === "(admin)";
-          if (inAuthGroup) {
+          const publicGroups = ["HU-00", "HU-01", "HU-02", "index"];
+          const isTryingToEnterProtected = !publicGroups.includes(segments[0]);
+
+          if (isTryingToEnterProtected) {
             router.replace("/");
           }
           return;
         }
 
         try {
-          // Consultar el rol del usuario en la tabla de perfiles
-          // Nota: Asegúrate de que tu tabla se llame 'perfiles' o 'usuarios'
           const { data: profile, error: profileError } = await supabase
             .from("perfiles")
             .select("rol")
@@ -58,19 +53,50 @@ export default function RootLayout() {
 
           if (profileError) throw profileError;
 
-          const userRol = profile?.rol; // Ejemplo: 'cliente', 'profesional', 'admin'
-          const currentGroup = segments[0];
+          const userRol = profile?.rol;
+          const currentPath = segments.join("/");
+          const rootSegment = segments[0];
 
-          // Redirección forzada basada en el ROL
-          if (userRol === "Profesional" && currentGroup !== "(profesional)") {
-            router.replace("/(profesional)");
-          } else if (
-            userRol === "Administrador" &&
-            currentGroup !== "(admin)"
-          ) {
-            router.replace("/(admin)");
-          } else if (userRol === "Cliente" && currentGroup !== "(cliente)") {
-            router.replace("/(cliente)");
+          // --- LÓGICA DE RUTAS EXTERNAS (HU-XX) ---
+
+          if (userRol === "Profesional") {
+            // Lista de HUs que pertenecen al profesional aunque estén afuera
+            const allowedHUs = ["HU-18", "HU-15", "HU-12"];
+            const isAllowed =
+              rootSegment === "(profesional)" ||
+              allowedHUs.includes(rootSegment);
+
+            if (!isAllowed) {
+              router.replace("/(profesional)");
+            }
+          } else if (userRol === "Cliente") {
+            // Lista de HUs que pertenecen al cliente
+            const allowedHUs = [
+              "HU-03",
+              "HU-04",
+              "HU-05",
+              "HU-06",
+              "HU-07",
+              "HU-08",
+              "HU-09",
+              "HU-10",
+              "HU-11",
+              "HU-13",
+              "HU-14",
+              "HU-15",
+              "HU-16",
+              "HU-17",
+            ];
+            const isAllowed =
+              rootSegment === "(cliente)" || allowedHUs.includes(rootSegment);
+
+            if (!isAllowed) {
+              router.replace("/(cliente)");
+            }
+          } else if (userRol === "Administrador") {
+            if (rootSegment !== "(admin)") {
+              router.replace("/(admin)");
+            }
           }
         } catch (err) {
           console.error("Error verificando rol:", err);
@@ -83,16 +109,13 @@ export default function RootLayout() {
     };
   }, [loaded, segments]);
 
-  // 3. Ocultar Splash Screen cuando las fuentes carguen
   useEffect(() => {
     if (loaded) {
       SplashScreen.hideAsync();
     }
   }, [loaded]);
 
-  if (!loaded) {
-    return null;
-  }
+  if (!loaded) return null;
 
   return (
     <>
@@ -107,14 +130,23 @@ export default function RootLayout() {
           headerShown: false,
         }}
       >
+        {/* Pantallas principales */}
         <Stack.Screen name="index" />
         <Stack.Screen name="(cliente)" />
         <Stack.Screen name="(profesional)" />
         <Stack.Screen name="(admin)" />
+
+        {/* RUTAS EXTERNAS (HUs) - Aquí registras las carpetas que estén afuera */}
+        <Stack.Screen
+          name="HU-18/solicitudDetalle"
+          options={{ headerShown: false }}
+        />
         <Stack.Screen
           name="HU-02/login"
           options={{ title: "Iniciar Sesión" }}
         />
+
+        {/* Modales */}
         <Stack.Screen
           name="modal"
           options={{

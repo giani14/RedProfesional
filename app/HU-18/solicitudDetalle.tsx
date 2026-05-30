@@ -222,11 +222,7 @@ export default function SolicitudDetalle() {
         <ProfileCard
           nombre={items?.perfiles?.nombre_completo || "Cargando..."}
           rol={items?.perfiles?.ubicacion || "Cargando..."}
-<<<<<<< HEAD:app/(profesional)/HU-18/solicitudDetalle.tsx
-          estado={items?.estado || "pendiente"}
-=======
           estado={(items?.estado as any) || "pendiente"}
->>>>>>> origin/hu-21:app/HU-18/solicitudDetalle.tsx
         />
 
         <InfoSection
@@ -312,10 +308,16 @@ export default function SolicitudDetalle() {
 
         {estado === "finalizado" && (
           <View style={[styles.banner, { backgroundColor: COLORS.successBg }]}>
-            <Ionicons name="checkmark-done-circle" size={20} color={COLORS.successText} />
+            <Ionicons
+              name="checkmark-done-circle"
+              size={20}
+              color={COLORS.successText}
+            />
             <Text style={[styles.bannerText, { color: COLORS.successText }]}>
               Servicio finalizado el{" "}
-              {formatearFecha(items?.actualizado_at || new Date().toISOString())}
+              {formatearFecha(
+                items?.actualizado_at || new Date().toISOString(),
+              )}
             </Text>
           </View>
         )}

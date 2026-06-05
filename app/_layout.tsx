@@ -61,7 +61,28 @@ export default function RootLayout() {
 
           if (userRol === "Profesional") {
             // Lista de HUs que pertenecen al profesional aunque estén afuera
-            const allowedHUs = ["HU-18", "HU-15", "HU-12"];
+            const allowedHUs = [
+              "HU-18",
+              "HU-15",
+              "HU-12",
+              "HU-03",
+              "HU-04",
+              "HU-05",
+              "HU-06",
+              "HU-07",
+              "HU-08",
+              "HU-09",
+              "HU-10",
+              "HU-11",
+              "HU-13",
+              "HU-14",
+              "HU-15",
+              "HU-16",
+              "HU-17",
+              "HU-19",
+              "HU-20",
+              "chat",
+            ];
             const isAllowed =
               rootSegment === "(profesional)" ||
               allowedHUs.includes(rootSegment);
@@ -86,6 +107,8 @@ export default function RootLayout() {
               "HU-15",
               "HU-16",
               "HU-17",
+              "HU-18",
+              "chat",
             ];
             const isAllowed =
               rootSegment === "(cliente)" || allowedHUs.includes(rootSegment);

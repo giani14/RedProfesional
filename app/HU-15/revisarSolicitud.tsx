@@ -48,7 +48,6 @@ export default function RevisarSolicitud() {
     try {
       setIsSending(true);
 
-      // 1. Obtener el usuario actual (cliente)
       const {
         data: { user },
         error: userError,
@@ -64,26 +63,22 @@ export default function RevisarSolicitud() {
         .from("solicitudes_servicio")
         .insert([
           {
-            cliente_id: user.id, // ID de quien envía
-            proyecto: servicio, // Mapeado a la columna 'proyecto'
-            descripcion_problema: descripcion, // Mapeado a 'descripcion_problema'
-            estado: "pendiente", // Estado inicial
-            // Nota: El profesional_id se usará en la siguiente etapa para que
-            // el profesional cree una 'propuesta_servicio' vinculada a esta solicitud.
+            cliente_id: user.id,
+            proyecto: servicio,
+            descripcion: descripcion, // Asegúrate que sea 'descripcion' según tu imagen de la BD
+            estado: "pendiente",
+            profesional_id: id, // <--- ¡ESTA ES LA LÍNEA QUE FALTABA!
+            presupuesto: presupuesto, // <--- Añades esta línea
           },
         ]);
 
       if (insertError) throw insertError;
 
-      // 3. Éxito y navegación
-      console.log("Solicitud registrada en la BD correctamente");
+      console.log("Solicitud registrada con el profesional:", id);
       router.push("/HU-15/solicitudEnviada");
     } catch (err) {
       console.error("Error al registrar solicitud:", err);
-      Alert.alert(
-        "Error",
-        "No pudimos registrar tu solicitud. Intenta más tarde.",
-      );
+      Alert.alert("Error", "No pudimos registrar tu solicitud.");
     } finally {
       setIsSending(false);
     }

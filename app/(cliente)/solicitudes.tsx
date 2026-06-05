@@ -1,11 +1,13 @@
-import { supabase } from "@/lib/supabase"; // Importa tu cliente de Supabase
+import { supabase } from "@/lib/supabase";
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, useRouter } from "expo-router";
-import React, { useEffect, useState } from "react"; // Añadimos useEffect
+import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   RefreshControl,
+  ScrollView,
   StatusBar,
   StyleSheet,
   Text,
@@ -16,23 +18,56 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 const COLORS = {
   primaryBlue: "#123F78",
-  accentGold: "#FBBF24",
   textMain: "#123F78",
   textSecondary: "#6B7280",
   bgLight: "#F9FAFB",
   white: "#FFFFFF",
   pendingBg: "#FEF3C7",
   pendingText: "#92400E",
-  activeBg: "#DBEAFE",
-  activeText: "#1E40AF",
+  acceptedBg: "#D1FAE5",
+  acceptedText: "#065F46",
+  rejectedBg: "#FEE2E2",
+  rejectedText: "#991B1B",
 };
-
+const estadoStyles: Record<
+  string,
+  { bg: string; color: string; label: string }
+> = {
+  pendiente: {
+    bg: COLORS.pendingBg,
+    color: COLORS.pendingText,
+    label: "Pendiente",
+  },
+  // Añadimos este bloque optimizado:
+  revisando: {
+    bg: "#E0F2FE", // Azul claro de fondo
+    color: "#0369A1", // Azul oscuro para el texto
+    label: "Revisando",
+  },
+  en_proceso: { bg: "#DBEAFE", color: "#1E40AF", label: "En Proceso" },
+  aceptada: {
+    bg: COLORS.acceptedBg,
+    color: COLORS.acceptedText,
+    label: "Aceptada",
+  },
+  rechazada: {
+    bg: COLORS.rejectedBg,
+    color: COLORS.rejectedText,
+    label: "Rechazada",
+  },
+  finalizado: {
+    bg: COLORS.acceptedBg,
+    color: COLORS.acceptedText,
+    label: "Finalizado",
+  },
+};
 export default function PedidosScreen() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState("pendientes"); // En minúsculas para coincidir con la BD
+  const [activeTab, setActiveTab] = useState("Todas");
   const [solicitudes, setSolicitudes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const tieneNotificaciones = false;
 
   const fetchSolicitudes = async () => {
     try {
@@ -42,101 +77,149 @@ export default function PedidosScreen() {
       } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Ajustamos el nombre del estado para que coincida con la base de datos
-      let estadoDB = activeTab.toLowerCase();
-      if (estadoDB === "pendientes") estadoDB = "pendiente"; // Corrección de plural a singular
-
-      const { data, error } = await supabase
+      let query = supabase
         .from("solicitudes_servicio")
         .select(
           `
-          id,
-          proyecto,
-          descripcion_problema,
-          estado,
-          fecha_solicitud
+          id, 
+          proyecto, 
+          estado, 
+          fecha_solicitud,
+          profesional_id,
+          perfiles!profesional_id (nombre_completo)
         `,
         )
-        .eq("cliente_id", user.id)
-        .eq("estado", estadoDB) // Enviamos el valor corregido
-        .order("fecha_solicitud", { ascending: false });
+        .eq("cliente_id", user.id);
+
+      // Lógica de filtrado mejorada
+      if (activeTab === "Pendientes") {
+        // Mostramos tanto las nuevas como las que ya se están revisando
+        query = query.in("estado", ["pendiente", "revisando"]);
+      } else if (activeTab !== "Todas") {
+        const estadoFiltro = activeTab.toLowerCase().replace("s", "");
+        query = query.eq("estado", estadoFiltro);
+      }
+
+      const { data, error } = await query.order("fecha_solicitud", {
+        ascending: false,
+      });
 
       if (error) throw error;
       setSolicitudes(data || []);
     } catch (error: any) {
-      // Esto mostrará el error detallado en tu consola para saber qué falló exactamente
-      console.error("Error detallado:", error.message, error.details);
+      console.error("Error en la consulta:", error.message);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   };
-  // 2. Ejecutar la carga cuando cambie la pestaña o al iniciar
+
   useEffect(() => {
     fetchSolicitudes();
   }, [activeTab]);
-
   const onRefresh = () => {
     setRefreshing(true);
     fetchSolicitudes();
   };
 
-  const renderItem = ({ item }: any) => (
-    <TouchableOpacity style={styles.card}>
-      <View style={styles.cardHeader}>
-        <View style={styles.avatarPlaceholder}>
-          <Ionicons name="person" size={30} color="#CBD5E1" />
-        </View>
-        <View style={styles.info}>
-          <Text style={styles.profeName}>
-            {item.profesionales_info?.nombre_completo || "Profesional"}
-          </Text>
-          <Text style={styles.profeService}>
-            {item.proyecto || "Servicio solicitado"}
-          </Text>
-        </View>
-        <View
-          style={[
-            styles.statusBadge,
-            item.estado === "pendientes"
-              ? styles.badgePending
-              : styles.badgeActive,
-          ]}
-        >
-          <Text
-            style={[
-              styles.statusText,
-              {
-                color:
-                  item.estado === "pendientes"
-                    ? COLORS.pendingText
-                    : COLORS.activeText,
-              },
-            ]}
-          >
-            {item.estado.charAt(0).toUpperCase() + item.estado.slice(1)}
-          </Text>
-        </View>
-      </View>
+  const handleDelete = (id: string) => {
+    Alert.alert(
+      "Eliminar Solicitud",
+      "¿Estás seguro de que quieres borrar esta solicitud?",
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Eliminar",
+          style: "destructive",
+          onPress: async () => {
+            const { error } = await supabase
+              .from("solicitudes_servicio")
+              .delete()
+              .eq("id", id);
+            if (!error) {
+              setSolicitudes(solicitudes.filter((s) => s.id !== id));
+            }
+          },
+        },
+      ],
+    );
+  };
 
-      <View style={styles.divider} />
+  const getStatusStyle = (status: string) => {
+    const s = status.toLowerCase();
+    if (estadoStyles[s]) {
+      return { bg: estadoStyles[s].bg, text: estadoStyles[s].color };
+    }
+    return { bg: COLORS.pendingBg, text: COLORS.pendingText };
+  };
 
-      <View style={styles.cardFooter}>
-        <View style={styles.footerRow}>
-          <Ionicons
-            name="calendar-outline"
-            size={16}
-            color={COLORS.textSecondary}
-          />
-          <Text style={styles.footerDate}>
-            {new Date(item.created_at).toLocaleDateString()}
-          </Text>
+  const renderItem = ({ item }: any) => {
+    // Usamos el diccionario global que ya tienes definido arriba para los colores
+    const configEstado =
+      estadoStyles[item.estado?.toLowerCase()] || estadoStyles["pendiente"];
+
+    return (
+      <TouchableOpacity
+        style={styles.card}
+        onPress={() =>
+          router.push({
+            pathname: "/HU-18/solicitudDetalle",
+            params: { id: item.id },
+          })
+        }
+        onLongPress={() => handleDelete(item.id)}
+        delayLongPress={1000}
+        activeOpacity={0.7}
+      >
+        <View style={styles.cardRow}>
+          <View style={styles.avatarPlaceholder}>
+            <Ionicons name="person" size={28} color="#CBD5E1" />
+          </View>
+
+          <View style={styles.cardContent}>
+            <View style={styles.cardHeaderLine}>
+              <Text style={styles.profeName} numberOfLines={1}>
+                {item.perfiles?.nombre_completo || "Profesional"}
+              </Text>
+              <View
+                style={[
+                  styles.statusBadge,
+                  { backgroundColor: configEstado.bg },
+                ]}
+              >
+                <Text
+                  style={[styles.statusText, { color: configEstado.color }]}
+                >
+                  {configEstado.label}
+                </Text>
+              </View>
+            </View>
+
+            <Text style={styles.profeService} numberOfLines={1}>
+              {item.proyecto}
+            </Text>
+
+            <View style={styles.cardFooter}>
+              <Text style={styles.footerDate}>
+                {item.fecha_solicitud
+                  ? new Date(item.fecha_solicitud).toLocaleDateString("es-ES", {
+                      day: "numeric",
+                      month: "long",
+                      year: "numeric",
+                    })
+                  : "Fecha pendiente"}
+              </Text>
+              <Ionicons
+                name="chevron-forward"
+                size={20}
+                color={COLORS.primaryBlue}
+              />
+            </View>
+          </View>
         </View>
-        {/* El monto vendrá de la tabla propuestas_servicio en el siguiente paso */}
-        <Text style={styles.footerPrice}>Pendiente de Cotización</Text>
-      </View>
-    </TouchableOpacity>
-  );
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <View style={styles.mainContainer}>
@@ -146,140 +229,184 @@ export default function PedidosScreen() {
         backgroundColor={COLORS.primaryBlue}
       />
 
+      {/* Header Estilo Nuevo */}
       <View style={styles.blueHeader}>
         <SafeAreaView edges={["top"]}>
           <View style={styles.headerContent}>
-            <TouchableOpacity onPress={() => router.back()}>
-              <Ionicons name="arrow-back" size={26} color="white" />
+            <TouchableOpacity>
+              <Ionicons name="menu" size={28} color="white" />
             </TouchableOpacity>
             <Text style={styles.headerTitle}>RedProfesional</Text>
-            <TouchableOpacity>
-              <Ionicons name="notifications-outline" size={24} color="white" />
+            <TouchableOpacity
+              onPress={() => router.push("/HU-17/notificacionCliente")}
+            >
+              <Ionicons name="notifications-outline" size={26} color="white" />
+              {tieneNotificaciones && <View style={styles.notifDot} />}
             </TouchableOpacity>
           </View>
         </SafeAreaView>
       </View>
 
-      <View style={styles.tabsContainer}>
-        {["Pendientes", "En Proceso", "Finalizados"].map((tab) => (
-          <TouchableOpacity
-            key={tab}
-            style={[
-              styles.tab,
-              activeTab === tab.toLowerCase() && styles.activeTab,
-            ]}
-            onPress={() => setActiveTab(tab.toLowerCase())}
-          >
-            <Text
-              style={[
-                styles.tabText,
-                activeTab === tab.toLowerCase() && styles.activeTabText,
-              ]}
-            >
-              {tab}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+      <View style={styles.contentBody}>
+        <Text style={styles.sectionTitle}>Mis solicitudes</Text>
 
-      {loading && !refreshing ? (
-        <ActivityIndicator
-          size="large"
-          color={COLORS.primaryBlue}
-          style={{ marginTop: 50 }}
-        />
-      ) : (
-        <FlatList
-          data={solicitudes}
-          renderItem={renderItem}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.listPadding}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-          }
-          ListEmptyComponent={
-            <Text style={styles.emptyText}>
-              No tienes solicitudes en este estado.
-            </Text>
-          }
-        />
-      )}
+        {/* Chips de Filtro */}
+        <View>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.chipsContainer}
+          >
+            {["Todas", "Pendientes", "Aceptadas", "Rechazadas"].map((tab) => (
+              <TouchableOpacity
+                key={tab}
+                style={[styles.chip, activeTab === tab && styles.activeChip]}
+                onPress={() => setActiveTab(tab)}
+              >
+                <Text
+                  style={[
+                    styles.chipText,
+                    activeTab === tab && styles.activeChipText,
+                  ]}
+                >
+                  {tab}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+
+        {loading && !refreshing ? (
+          <ActivityIndicator
+            size="large"
+            color={COLORS.primaryBlue}
+            style={{ marginTop: 50 }}
+          />
+        ) : (
+          <FlatList
+            data={solicitudes}
+            renderItem={renderItem}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={styles.listPadding}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={fetchSolicitudes}
+              />
+            }
+            ListEmptyComponent={
+              <Text style={styles.emptyText}>
+                No hay solicitudes para mostrar.
+              </Text>
+            }
+          />
+        )}
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   mainContainer: { flex: 1, backgroundColor: COLORS.bgLight },
-
-  // Estilo del Header Azul
-  blueHeader: { backgroundColor: COLORS.primaryBlue, paddingBottom: 15 },
+  blueHeader: { backgroundColor: COLORS.primaryBlue, paddingBottom: 10 },
   headerContent: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
   },
-  headerTitle: { color: "white", fontSize: 18, fontWeight: "bold" },
+  headerTitle: { color: "white", fontSize: 20, fontWeight: "bold" },
 
-  // Estilo de Pestañas
-  tabsContainer: {
-    flexDirection: "row",
+  contentBody: { flex: 1, paddingTop: 20 },
+  sectionTitle: {
+    fontSize: 24,
+    fontWeight: "bold",
+    color: COLORS.textMain,
+    marginLeft: 20,
+    marginBottom: 20,
+  },
+
+  // Estilo Chips
+  chipsContainer: {
+    paddingHorizontal: 20,
+    gap: 10,
+    marginBottom: 20,
+    height: 40,
+  },
+  chip: {
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    borderRadius: 20,
     backgroundColor: COLORS.white,
-    borderBottomWidth: 1,
-    borderBottomColor: "#E5E7EB",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
   },
-  tab: { flex: 1, paddingVertical: 15, alignItems: "center" },
-  activeTab: { borderBottomWidth: 3, borderBottomColor: COLORS.accentGold },
-  tabText: { fontSize: 14, fontWeight: "600", color: COLORS.textSecondary },
-  activeTabText: { color: COLORS.primaryBlue },
+  activeChip: {
+    backgroundColor: COLORS.primaryBlue,
+    borderColor: COLORS.primaryBlue,
+  },
+  chipText: { color: COLORS.textSecondary, fontWeight: "500" },
+  activeChipText: { color: COLORS.white },
 
-  // Tarjetas de Pedido mejoradas
-  listPadding: { padding: 20 },
+  // Tarjetas según la nueva imagen
+  listPadding: { paddingHorizontal: 20, paddingBottom: 30 },
   card: {
     backgroundColor: COLORS.white,
-    borderRadius: 18,
-    padding: 16,
+    borderRadius: 20,
+    padding: 15,
     marginBottom: 15,
-    elevation: 2,
+    borderWidth: 1,
+    borderColor: "#F3F4F6",
+    // Sombra suave
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
   },
-  cardHeader: { flexDirection: "row", alignItems: "center", marginBottom: 12 },
+  cardRow: { flexDirection: "row" },
   avatarPlaceholder: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     backgroundColor: "#F3F4F6",
     justifyContent: "center",
     alignItems: "center",
   },
-  info: { flex: 1, marginLeft: 15 },
-  profeName: { fontSize: 16, fontWeight: "bold", color: COLORS.primaryBlue },
-  profeService: { fontSize: 13, color: COLORS.textSecondary, marginTop: 2 },
+  cardContent: { flex: 1, marginLeft: 15 },
+  cardHeaderLine: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+  },
+  profeName: { fontSize: 17, fontWeight: "bold", color: COLORS.textMain },
+  profeService: { fontSize: 14, color: COLORS.textSecondary, marginTop: 4 },
 
   statusBadge: { paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12 },
-  badgePending: { backgroundColor: COLORS.pendingBg },
-  badgeActive: { backgroundColor: COLORS.activeBg },
-  statusText: { fontSize: 11, fontWeight: "bold" },
-
-  divider: { height: 1, backgroundColor: "#F3F4F6", marginVertical: 4 },
+  statusText: { fontSize: 12, fontWeight: "bold" },
 
   cardFooter: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginTop: 8,
+    marginTop: 12,
   },
-  footerRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-  footerDate: { fontSize: 13, color: COLORS.textSecondary },
-  footerPrice: { fontSize: 15, fontWeight: "bold", color: COLORS.primaryBlue },
+  footerDate: { fontSize: 13, color: COLORS.textSecondary, fontWeight: "500" },
+
   emptyText: {
     textAlign: "center",
     marginTop: 40,
     color: COLORS.textSecondary,
-    fontSize: 16,
+  },
+  notifDot: {
+    position: "absolute",
+    top: 2,
+    right: 2,
+    backgroundColor: "#EAB308", // Dorado como tus colores principales
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: COLORS.primaryBlue,
   },
 });

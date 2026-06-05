@@ -67,6 +67,8 @@ export default function HomeScreen() {
     rol: string;
     avatar_url?: string;
   } | null>(null);
+  // Pon esto dentro de tu función SolicitudDetalle, antes del return:
+  const tieneNotificaciones = false;
 
   useEffect(() => {
     fetchUserProfile();
@@ -129,12 +131,16 @@ export default function HomeScreen() {
         <Text style={styles.headerLogo}>
           Red<Text style={{ color: COLORS.accentGold }}>Profesional</Text>
         </Text>
-        <TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => router.push("/HU-17/notificacionCliente")}
+        >
           <Ionicons
             name="notifications-outline"
             size={28}
             color={COLORS.white}
           />
+          {/* Punto rojo si hay notificaciones sin leer */}
+          {tieneNotificaciones && <View style={styles.notifDot} />}
         </TouchableOpacity>
       </View>
 
@@ -297,5 +303,16 @@ const styles = StyleSheet.create({
     color: COLORS.textGray,
     textAlign: "center",
     marginTop: 5,
+  },
+  notifDot: {
+    position: "absolute",
+    top: 2,
+    right: 2,
+    backgroundColor: "#EAB308", // Dorado como tus colores principales
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: COLORS.primaryBlue,
   },
 });

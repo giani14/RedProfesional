@@ -6,6 +6,7 @@ import {
   ActivityIndicator,
   FlatList,
   Image,
+  RefreshControl,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -30,14 +31,12 @@ const COLORS = {
   rejectedText: "#B91C1C",
 };
 
-// Ajustamos los tipos para que coincidan con las Mayúsculas de tu base de datos si es necesario
 type EstadoSolicitud =
   | "pendiente"
   | "aceptada"
   | "rechazada"
-  | "Pendiente"
-  | "Aceptada"
-  | "Rechazada";
+  | "en_proceso"
+  | "finalizado";
 
 interface Solicitud {
   id: string;
@@ -62,17 +61,14 @@ const estadoStyles: Record<
     color: COLORS.pendingText,
     label: "Pendiente",
   },
-  Pendiente: {
-    bg: COLORS.pendingBg,
-    color: COLORS.pendingText,
-    label: "Pendiente",
+  // Añadimos este bloque optimizado:
+  revisando: {
+    bg: "#E0F2FE", // Azul claro de fondo
+    color: "#0369A1", // Azul oscuro para el texto
+    label: "Revisando",
   },
+  en_proceso: { bg: "#DBEAFE", color: "#1E40AF", label: "En Proceso" },
   aceptada: {
-    bg: COLORS.acceptedBg,
-    color: COLORS.acceptedText,
-    label: "Aceptada",
-  },
-  Aceptada: {
     bg: COLORS.acceptedBg,
     color: COLORS.acceptedText,
     label: "Aceptada",
@@ -82,22 +78,24 @@ const estadoStyles: Record<
     color: COLORS.rejectedText,
     label: "Rechazada",
   },
-  Rechazada: {
-    bg: COLORS.rejectedBg,
-    color: COLORS.rejectedText,
-    label: "Rechazada",
+  finalizado: {
+    bg: COLORS.acceptedBg,
+    color: COLORS.acceptedText,
+    label: "Finalizado",
   },
 };
 
-function formatearFecha(fechaIso: string): string {
-  if (!fechaIso) return "Reciente";
-  const fecha = new Date(fechaIso);
+const formatearFecha = (fechaStr: string): string => {
+  if (!fechaStr) return "Fecha pendiente";
+  const fecha = new Date(fechaStr);
+  if (isNaN(fecha.getTime())) return "Fecha no válida";
+
   return fecha.toLocaleDateString("es-ES", {
     day: "numeric",
     month: "long",
     year: "numeric",
   });
-}
+};
 
 function SolicitudCard({
   item,
@@ -106,16 +104,14 @@ function SolicitudCard({
   item: Solicitud;
   onPress: () => void;
 }) {
-  const badge = estadoStyles[item.estado] || estadoStyles["pendiente"];
+  const estadoNormalizado = item.estado?.toLowerCase() || "pendiente";
+  const badge = estadoStyles[estadoNormalizado] || estadoStyles["pendiente"];
   const [imageUri, setImageUri] = useState<string>(
     "https://via.placeholder.com/150/F1F5F9/94A3B8?text=%20",
   );
 
   useEffect(() => {
-    if (
-      item.perfiles?.avatar_url &&
-      item.perfiles.avatar_url.startsWith("http")
-    ) {
+    if (item.perfiles?.avatar_url?.startsWith("http")) {
       setImageUri(item.perfiles.avatar_url);
     }
   }, [item.perfiles?.avatar_url]);
@@ -123,15 +119,7 @@ function SolicitudCard({
   return (
     <TouchableOpacity style={styles.card} activeOpacity={0.8} onPress={onPress}>
       <View style={styles.avatarContainer}>
-        <Image
-          source={{ uri: imageUri }}
-          style={styles.avatarImg}
-          onError={() =>
-            setImageUri(
-              "https://via.placeholder.com/150/F1F5F9/94A3B8?text=%20",
-            )
-          }
-        />
+        <Image source={{ uri: imageUri }} style={styles.avatarImg} />
         {imageUri.includes("via.placeholder.com") && (
           <View style={styles.iconOverlay}>
             <Ionicons name="person" size={24} color="#94A3B8" />
@@ -144,7 +132,7 @@ function SolicitudCard({
           {item.perfiles?.nombre_completo || "Cliente Requiriente"}
         </Text>
         <Text style={styles.cardProject} numberOfLines={1}>
-          {item.proyecto || "Sin título de proyecto"}
+          {item.proyecto || "Sin título"}
         </Text>
         <Text style={styles.cardDate}>
           {formatearFecha(item.fecha_solicitud)}
@@ -173,15 +161,28 @@ export default function SolicitudesProfesional() {
   const [filtroActivo, setFiltroActivo] = useState<Filtro>("Todas");
   const [items, setItems] = useState<Solicitud[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   const solicitudesMostrar = useMemo(() => {
     if (filtroActivo === "Todas") return items;
+
+    if (filtroActivo === "Pendientes") {
+      // Incluimos tanto 'pendiente' como 'revisando' para que no desaparezcan de la vista
+      return items.filter(
+        (s) =>
+          s.estado?.toLowerCase() === "pendiente" ||
+          s.estado?.toLowerCase() === "revisando",
+      );
+    }
+    if (filtroActivo === "Rechazadas") {
+      return items.filter((s) => s.estado?.toLowerCase() === "rechazada");
+    }
+
     const mapa: Record<string, string> = {
-      Pendientes: "pendiente",
-      Aceptadas: "aceptada",
+      Aceptadas: "aceptada", // O "en_proceso" según tu lógica
       Rechazadas: "rechazada",
     };
-    // Filtramos ignorando mayúsculas/minúsculas para evitar errores de la DB
+
     return items.filter((s) => s.estado?.toLowerCase() === mapa[filtroActivo]);
   }, [filtroActivo, items]);
 
@@ -194,8 +195,12 @@ export default function SolicitudesProfesional() {
   async function fetchData() {
     try {
       setIsLoading(true);
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
 
-      // CONSULTA CONECTADA: Traemos solicitudes y el perfil del cliente que la creó
+      // FILTRO DE SEGURIDAD: Solo solicitudes dirigidas a MI ID como profesional
       const { data, error } = await supabase
         .from("solicitudes_servicio")
         .select(
@@ -204,40 +209,39 @@ export default function SolicitudesProfesional() {
           estado, 
           fecha_solicitud, 
           proyecto, 
-          perfiles:cliente_id (
-            nombre_completo, 
-            avatar_url
-          )
+          perfiles:cliente_id (nombre_completo, avatar_url)
         `,
         )
+        .eq("profesional_id", user.id) // <--- Seguridad: Solo lo que me corresponde
         .order("fecha_solicitud", { ascending: false });
 
       if (error) throw error;
-
-      // Cast manual para que TypeScript no se queje del join
       setItems((data as any) || []);
     } catch (error: any) {
-      console.error("Error al obtener solicitudes:", error.message);
+      console.error("Error:", error.message);
     } finally {
       setIsLoading(false);
+      setRefreshing(false);
     }
   }
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    fetchData();
+  }, []);
 
   return (
     <SafeAreaView style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
 
+      {/* HEADER AZUL (Igual a tu diseño) */}
       <View style={styles.customHeader}>
         <TouchableOpacity>
-          <Ionicons name="menu-outline" size={28} color={COLORS.white} />
+          <Ionicons name="menu-outline" size={28} color="white" />
         </TouchableOpacity>
         <Text style={styles.headerLogo}>RedProfesional</Text>
         <TouchableOpacity>
-          <Ionicons
-            name="notifications-outline"
-            size={26}
-            color={COLORS.white}
-          />
+          <Ionicons name="notifications-outline" size={26} color="white" />
           <View style={styles.notifDot} />
         </TouchableOpacity>
       </View>
@@ -270,7 +274,7 @@ export default function SolicitudesProfesional() {
           </ScrollView>
         </View>
 
-        {isLoading ? (
+        {isLoading && !refreshing ? (
           <ActivityIndicator
             size="large"
             color={COLORS.primaryBlue}
@@ -292,15 +296,17 @@ export default function SolicitudesProfesional() {
               />
             )}
             contentContainerStyle={styles.listContent}
+            // IMPLEMENTACIÓN DE RECARGA AL ARRASTRAR
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                colors={[COLORS.primaryBlue]}
+              />
+            }
             ListEmptyComponent={
-              <Text
-                style={{
-                  textAlign: "center",
-                  marginTop: 40,
-                  color: COLORS.textGray,
-                }}
-              >
-                No hay solicitudes disponibles por ahora.
+              <Text style={styles.emptyText}>
+                No tienes solicitudes pendientes.
               </Text>
             }
           />
@@ -310,7 +316,6 @@ export default function SolicitudesProfesional() {
   );
 }
 
-// Mantenemos tus estilos exactamente igual
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   customHeader: {
@@ -407,4 +412,10 @@ const styles = StyleSheet.create({
   },
   badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
   badgeText: { fontSize: 11, fontWeight: "bold" },
+  emptyText: {
+    textAlign: "center",
+    marginTop: 40,
+    color: COLORS.textGray,
+    fontSize: 14,
+  },
 });

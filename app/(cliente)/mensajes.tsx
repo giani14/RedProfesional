@@ -1,259 +1,232 @@
+import { supabase } from "@/lib/supabase";
 import { Ionicons } from "@expo/vector-icons";
-import { Stack, useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import { Stack, useFocusEffect, useRouter } from "expo-router";
+import React, { useCallback, useState } from "react";
 import {
+  ActivityIndicator,
   FlatList,
-  Image,
+  Platform,
+  SafeAreaView,
   StatusBar,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
-// Importación corregida para evitar el Warning de deprecación
-import { SafeAreaView } from "react-native-safe-area-context";
 
 const COLORS = {
-  primaryBlue: "#123F78",
-  textMain: "#1F2937",
-  textSecondary: "#6B7280",
-  bgLight: "#F9FAFB",
+  primaryBlue: "#1A4670",
+  accentGold: "#EAB308",
   white: "#FFFFFF",
+  textGray: "#6B7280",
+  textDark: "#1F2937",
+  borderGray: "#E5E7EB",
 };
 
-export default function MensajesScreen() {
+export default function MensajesCliente() {
   const router = useRouter();
-  const [chats, setChats] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [chats, setChats] = useState<any[]>([]);
 
-  useEffect(() => {
-    cargarConversaciones();
+  useFocusEffect(
+    useCallback(() => {
+      fetchChats();
+    }, []),
+  );
 
-    /* PREPARATIVO PARA CONEXIÓN REAL (REALTIME):
-      Este bloque permitirá que la bandeja de entrada se actualice sola cuando 
-      alguien te envíe un mensaje sin necesidad de recargar.
-    */
-    /*
-    const channel = supabase
-      .channel('db-mensajes')
-      .on('postgres_changes', { 
-        event: '*', 
-        schema: 'public', 
-        table: 'mensajes' 
-      }, () => {
-        cargarConversaciones(); // Recarga la lista ante cualquier cambio real
-      })
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
-    */
-  }, []);
-
-  const cargarConversaciones = async () => {
+  async function fetchChats() {
     try {
-      setLoading(true);
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
 
-      /* LOGICA PARA CONEXIÓN REAL CON BASE DE DATOS:
-        Una vez creada la vista 'conversaciones_view' en Supabase, 
-        descomenta el siguiente bloque y borra los datos mock.
-      */
-      /*
+      // Consulta: Traemos el profesional y los mensajes asociados
       const { data, error } = await supabase
-        .from("conversaciones_view")
-        .select("*")
-        .order("ultimo_mensaje_fecha", { ascending: false });
+        .from("chats")
+        .select(
+          `
+          id,
+          profesional:profesional_id (nombre_completo),
+          mensajes (texto, created_at, leido, emisor_id)
+        `,
+        )
+        .eq("cliente_id", user.id);
 
       if (error) throw error;
-      setChats(data || []);
-      */
 
-      // --- DATOS DE SIMULACIÓN (Activos para evitar error PGRST205) ---
-      const mockConversaciones = [
-        {
-          id: "1",
-          profe_nombre: "Carlos Mendoza",
-          profe_avatar: "https://via.placeholder.com/150",
-          ultimo_mensaje: "¡Claro! El lunes a las 9:00 AM estaré por allá.",
-          fecha_relativa: "12:30",
-          unread_count: 2,
-          online: true,
-        },
-        {
-          id: "2",
-          profe_nombre: "Juan Pérez",
-          profe_avatar: "https://via.placeholder.com/150",
-          ultimo_mensaje: "Ya recibí tu solicitud de servicio.",
-          fecha_relativa: "Ayer",
-          unread_count: 0,
-          online: false,
-        },
-      ];
+      const formatted = (data as any[])
+        .map((chat) => {
+          // Ordenar mensajes localmente para asegurar que el [0] sea el más reciente
+          const msgsOrdenados = chat.mensajes?.sort(
+            (a: any, b: any) =>
+              new Date(b.created_at).getTime() -
+              new Date(a.created_at).getTime(),
+          );
 
-      setChats(mockConversaciones);
-    } catch (err) {
-      console.error("Error al cargar chats:", err);
+          const lastMsg =
+            msgsOrdenados && msgsOrdenados.length > 0 ? msgsOrdenados[0] : null;
+
+          return {
+            id: chat.id,
+            nombre: chat.profesional?.nombre_completo || "Profesional",
+            ultimo: lastMsg?.texto || "Inicia la conversación",
+            fechaRaw: lastMsg?.created_at || new Date(0).toISOString(), // Para el sort de la lista
+            fecha: lastMsg?.created_at
+              ? new Date(lastMsg.created_at).toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })
+              : "",
+            // Notificación: leido es falso solo si el último mensaje NO es mío
+            leido: lastMsg
+              ? lastMsg.leido === true || lastMsg.emisor_id === user.id
+              : true,
+          };
+        })
+        // ORDENAMIENTO CRÍTICO: Los chats con mensajes más recientes arriba
+        .sort(
+          (a, b) =>
+            new Date(b.fechaRaw).getTime() - new Date(a.fechaRaw).getTime(),
+        );
+
+      setChats(formatted);
+    } catch (error) {
+      console.error("Error al cargar chats cliente:", error);
     } finally {
       setLoading(false);
     }
-  };
-
-  const renderChatItem = ({ item }: any) => (
-    <TouchableOpacity
-      style={styles.chatCard}
-      onPress={() =>
-        router.push({
-          pathname: "/HU-06/chatDetalle",
-          params: { conversationId: item.id, nombre: item.profe_nombre },
-        })
-      }
-    >
-      <View style={styles.avatarContainer}>
-        <Image source={{ uri: item.profe_avatar }} style={styles.avatar} />
-        {item.online && <View style={styles.onlineBadge} />}
-      </View>
-
-      <View style={styles.chatInfo}>
-        <View style={styles.chatHeader}>
-          <Text style={styles.profeName} numberOfLines={1}>
-            {item.profe_nombre}
-          </Text>
-          <Text style={styles.chatTime}>{item.fecha_relativa}</Text>
-        </View>
-
-        <View style={styles.messageRow}>
-          <Text
-            style={[
-              styles.lastMessage,
-              item.unread_count > 0 && styles.unreadText,
-            ]}
-            numberOfLines={1}
-          >
-            {item.ultimo_mensaje}
-          </Text>
-          {item.unread_count > 0 && (
-            <View style={styles.unreadBadge}>
-              <Text style={styles.unreadCountText}>{item.unread_count}</Text>
-            </View>
-          )}
-        </View>
-      </View>
-    </TouchableOpacity>
-  );
+  }
 
   return (
-    <View style={styles.mainContainer}>
+    <SafeAreaView style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
-      <StatusBar
-        barStyle="light-content"
-        backgroundColor={COLORS.primaryBlue}
-      />
 
-      {/* Header unificado con RedProfesional */}
-      <View style={styles.blueHeader}>
-        <SafeAreaView edges={["top"]}>
-          <View style={styles.headerContent}>
-            <Text style={styles.headerTitle}>Mensajes</Text>
-            <TouchableOpacity>
-              <Ionicons name="search-outline" size={24} color="white" />
-            </TouchableOpacity>
-          </View>
-        </SafeAreaView>
+      <View style={styles.searchSection}>
+        <Text style={styles.headerTitle}>Mis Mensajes</Text>
+        <View style={{ height: 5 }} />
+
+        <View style={styles.searchBar}>
+          <Ionicons name="search-outline" size={20} color={COLORS.textGray} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Buscar profesionales..."
+            placeholderTextColor={COLORS.textGray}
+            value={search}
+            onChangeText={setSearch}
+          />
+        </View>
       </View>
 
-      <FlatList
-        data={chats}
-        renderItem={renderChatItem}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.listContent}
-        ListEmptyComponent={
-          <View style={styles.center}>
-            <Text style={styles.textSecondary}>
-              No hay conversaciones activas.
+      {loading ? (
+        <View style={styles.center}>
+          <ActivityIndicator size="large" color={COLORS.primaryBlue} />
+        </View>
+      ) : (
+        <FlatList
+          data={chats.filter((c) =>
+            c.nombre.toLowerCase().includes(search.toLowerCase()),
+          )}
+          keyExtractor={(item) => item.id}
+          ListEmptyComponent={
+            <Text style={styles.emptyText}>
+              No tienes conversaciones activas.
             </Text>
-          </View>
-        }
-      />
-    </View>
+          }
+          renderItem={({ item }) => (
+            <TouchableOpacity
+              style={styles.chatCard}
+              onPress={() => router.push(`/chat/${item.id}`)}
+            >
+              <View style={styles.avatarCircle}>
+                <Text style={styles.avatarText}>{item.nombre.charAt(0)}</Text>
+              </View>
+              <View style={styles.chatInfo}>
+                <View style={styles.nameRow}>
+                  <Text style={styles.userName}>{item.nombre}</Text>
+                  <Text style={styles.dateText}>{item.fecha}</Text>
+                </View>
+                <Text style={styles.lastMessage} numberOfLines={1}>
+                  {item.ultimo}
+                </Text>
+              </View>
+              {!item.leido && <View style={styles.unreadDot} />}
+            </TouchableOpacity>
+          )}
+        />
+      )}
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  mainContainer: { flex: 1, backgroundColor: COLORS.white },
-  blueHeader: { backgroundColor: COLORS.primaryBlue, paddingBottom: 15 },
-  headerContent: {
+  container: { flex: 1, backgroundColor: COLORS.white },
+  searchSection: {
+    paddingHorizontal: 20,
+    backgroundColor: COLORS.primaryBlue,
+    paddingBottom: 25,
+    paddingTop:
+      Platform.OS === "android" ? (StatusBar.currentHeight || 0) + 20 : 20,
+  },
+  headerTitle: {
+    color: COLORS.white,
+    fontSize: 24,
+    fontWeight: "bold",
+    marginBottom: 10,
+  },
+  searchBar: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingTop: 10,
+    backgroundColor: COLORS.white,
+    paddingHorizontal: 15,
+    borderRadius: 12,
+    height: 48,
+    elevation: 3,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
-  headerTitle: { color: "white", fontSize: 20, fontWeight: "bold" },
-
-  listContent: { paddingVertical: 5 },
+  searchInput: { flex: 1, marginLeft: 10, color: COLORS.textDark },
   chatCard: {
     flexDirection: "row",
-    paddingHorizontal: 20,
-    paddingVertical: 15,
+    padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: "#F3F4F6",
+    borderBottomColor: COLORS.borderGray,
     alignItems: "center",
   },
-  avatarContainer: { position: "relative" },
-  avatar: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: "#F3F4F6",
-  },
-  onlineBadge: {
-    position: "absolute",
-    bottom: 2,
-    right: 2,
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: "#10B981",
-    borderWidth: 2,
-    borderColor: "white",
-  },
-  chatInfo: { flex: 1, marginLeft: 15 },
-  chatHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 5,
-  },
-  profeName: { fontSize: 16, fontWeight: "bold", color: COLORS.textMain },
-  chatTime: { fontSize: 12, color: COLORS.textSecondary },
-  messageRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  lastMessage: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
-    flex: 1,
-    marginRight: 10,
-  },
-  unreadText: { color: COLORS.textMain, fontWeight: "700" },
-  unreadBadge: {
+  avatarCircle: {
+    width: 55,
+    height: 55,
+    borderRadius: 28,
     backgroundColor: COLORS.primaryBlue,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  unreadCountText: { color: "white", fontSize: 10, fontWeight: "bold" },
-  center: {
-    flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    marginTop: 50,
   },
-  textSecondary: {
-    color: "#6B7280",
-    fontSize: 14,
+  avatarText: { color: COLORS.white, fontSize: 22, fontWeight: "bold" },
+  chatInfo: { flex: 1, marginLeft: 15 },
+  nameRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  userName: { fontSize: 16, fontWeight: "700", color: COLORS.textDark },
+  dateText: { fontSize: 12, color: COLORS.textGray },
+  lastMessage: { color: COLORS.textGray, marginTop: 4, fontSize: 14 },
+  unreadDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: COLORS.accentGold,
+    marginLeft: 10,
+  },
+  center: { flex: 1, justifyContent: "center", alignItems: "center" },
+  emptyText: {
     textAlign: "center",
+    marginTop: 40,
+    color: COLORS.textGray,
+    fontSize: 16,
   },
 });

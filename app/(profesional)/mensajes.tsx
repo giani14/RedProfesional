@@ -1,10 +1,13 @@
+import { supabase } from "@/lib/supabase";
 import { Ionicons } from "@expo/vector-icons";
-import { Stack, router } from "expo-router";
-import React, { useEffect, useState } from "react";
+import { Stack, useFocusEffect, useRouter } from "expo-router";
+import React, { useCallback, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
+  Platform,
   SafeAreaView,
+  StatusBar,
   StyleSheet,
   Text,
   TextInput,
@@ -22,119 +25,98 @@ const COLORS = {
   onlineGreen: "#10B981",
 };
 
-interface ChatItemProps {
-  id: string;
-  nombre: string;
-  ultimoMensaje: string;
-  fecha: string;
-  leido: boolean;
-  onPress: () => void;
-}
-
-const ChatItem = ({
-  nombre,
-  ultimoMensaje,
-  fecha,
-  leido,
-  onPress,
-}: ChatItemProps) => (
-  <TouchableOpacity
-    style={styles.chatCard}
-    onPress={onPress}
-    activeOpacity={0.7}
-  >
-    <View style={styles.avatarContainer}>
-      <View style={styles.avatarCircle}>
-        <Text style={styles.avatarText}>{nombre.charAt(0).toUpperCase()}</Text>
-      </View>
-      <View style={styles.onlineStatus} />
-    </View>
-
-    <View style={styles.chatInfo}>
-      <View style={styles.chatHeaderRow}>
-        <Text style={[styles.userName, !leido && styles.unreadText]}>
-          {nombre}
-        </Text>
-        <Text style={styles.chatDate}>{fecha}</Text>
-      </View>
-      <Text
-        style={[styles.lastMessage, !leido && styles.unreadMessageText]}
-        numberOfLines={1}
-      >
-        {ultimoMensaje}
-      </Text>
-    </View>
-
-    {!leido && <View style={styles.unreadDot} />}
-  </TouchableOpacity>
-);
-
 export default function MensajesProfesional() {
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [chats, setChats] = useState<any[]>([]);
 
-  useEffect(() => {
-    // Simulación de carga de chats desde Supabase
-    const loadChats = async () => {
-      setLoading(true);
-      // Aquí iría tu query a la tabla de conversaciones/mensajes
-      const mockChats = [
-        {
-          id: "1",
-          nombre: "Marvin Anghelo",
-          ultimo: "¿Podemos revisar el avance del módulo 4?",
-          fecha: "10:30 AM",
-          leido: false,
-        },
-        {
-          id: "2",
-          nombre: "Soporte Técnico",
-          ultimo: "Tu cuenta ha sido verificada con éxito.",
-          fecha: "Ayer",
-          leido: true,
-        },
-        {
-          id: "3",
-          nombre: "Juan Pérez",
-          ultimo: "Gracias por el presupuesto, lo revisaré.",
-          fecha: "Lunes",
-          leido: true,
-        },
-      ];
-      setChats(mockChats);
-      setLoading(false);
-    };
-
-    loadChats();
-  }, []);
-
-  const filteredChats = chats.filter((chat) =>
-    chat.nombre.toLowerCase().includes(search.toLowerCase()),
+  useFocusEffect(
+    useCallback(() => {
+      fetchChats();
+    }, []),
   );
+
+  async function fetchChats() {
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Traemos el chat, el nombre del cliente y sus mensajes
+      const { data, error } = await supabase
+        .from("chats")
+        .select(
+          `
+          id,
+          cliente:cliente_id (nombre_completo),
+          mensajes (texto, created_at, leido, emisor_id)
+        `,
+        )
+        .eq("profesional_id", user.id);
+
+      if (error) throw error;
+
+      const formatted = (data as any[])
+        .map((chat) => {
+          // Ordenar mensajes localmente por fecha (descendente) para capturar el último
+          const msgsOrdenados = chat.mensajes?.sort(
+            (a: any, b: any) =>
+              new Date(b.created_at).getTime() -
+              new Date(a.created_at).getTime(),
+          );
+
+          const lastMsg =
+            msgsOrdenados && msgsOrdenados.length > 0 ? msgsOrdenados[0] : null;
+
+          return {
+            id: chat.id,
+            nombre: chat.cliente?.nombre_completo || "Cliente",
+            ultimo: lastMsg?.texto || "Sin mensajes aún",
+            fechaRaw: lastMsg?.created_at || new Date(0).toISOString(),
+            fecha: lastMsg?.created_at
+              ? new Date(lastMsg.created_at).toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })
+              : "",
+            // Notificación: leido es falso SOLO si el último mensaje lo envió el cliente
+            leido: lastMsg
+              ? lastMsg.leido === true || lastMsg.emisor_id === user.id
+              : true,
+          };
+        })
+        // Ordenar la lista completa: chats con mensajes más recientes arriba
+        .sort(
+          (a, b) =>
+            new Date(b.fechaRaw).getTime() - new Date(a.fechaRaw).getTime(),
+        );
+
+      setChats(formatted);
+    } catch (error) {
+      console.error("Error al cargar chats:", error);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
     <SafeAreaView style={styles.container}>
-      <Stack.Screen
-        options={{
-          title: "Mensajes",
-          headerShown: true,
-          headerStyle: { backgroundColor: COLORS.primaryBlue },
-          headerTintColor: COLORS.white,
-          headerTitleStyle: { fontWeight: "bold" },
-        }}
-      />
+      <Stack.Screen options={{ headerShown: false }} />
 
-      {/* Buscador */}
       <View style={styles.searchSection}>
+        <Text style={styles.headerTitle}>Mensajes</Text>
+        <View style={{ height: 5 }} />
+
         <View style={styles.searchBar}>
           <Ionicons name="search-outline" size={20} color={COLORS.textGray} />
           <TextInput
             style={styles.searchInput}
             placeholder="Buscar chats con clientes..."
+            placeholderTextColor={COLORS.textGray}
             value={search}
             onChangeText={setSearch}
-            placeholderTextColor={COLORS.textGray}
           />
         </View>
       </View>
@@ -145,37 +127,35 @@ export default function MensajesProfesional() {
         </View>
       ) : (
         <FlatList
-          data={filteredChats}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.listContent}
-          renderItem={({ item }) => (
-            <ChatItem
-              id={item.id}
-              nombre={item.nombre}
-              ultimoMensaje={item.ultimo}
-              fecha={item.fecha}
-              leido={item.leido}
-              onPress={() =>
-  router.push({
-    pathname: "/HU-19/ChatScreen" as any,
-    params: {
-      conversationId: item.id,
-      nombre: item.nombre,
-    },
-  })
-}
-            />
+          data={chats.filter((c) =>
+            c.nombre.toLowerCase().includes(search.toLowerCase()),
           )}
+          keyExtractor={(item) => item.id}
           ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <Ionicons
-                name="chatbubbles-outline"
-                size={80}
-                color={COLORS.borderGray}
-              />
-              <Text style={styles.emptyText}>No tienes mensajes aún.</Text>
-            </View>
+            <Text style={styles.emptyText}>
+              No tienes conversaciones activas.
+            </Text>
           }
+          renderItem={({ item }) => (
+            <TouchableOpacity
+              style={styles.chatCard}
+              onPress={() => router.push(`/chat/${item.id}`)}
+            >
+              <View style={styles.avatarCircle}>
+                <Text style={styles.avatarText}>{item.nombre.charAt(0)}</Text>
+              </View>
+              <View style={styles.chatInfo}>
+                <View style={styles.nameRow}>
+                  <Text style={styles.userName}>{item.nombre}</Text>
+                  <Text style={styles.dateText}>{item.fecha}</Text>
+                </View>
+                <Text style={styles.lastMessage} numberOfLines={1}>
+                  {item.ultimo}
+                </Text>
+              </View>
+              {!item.leido && <View style={styles.unreadDot} />}
+            </TouchableOpacity>
+          )}
         />
       )}
     </SafeAreaView>
@@ -184,12 +164,18 @@ export default function MensajesProfesional() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.white },
-  center: { flex: 1, justifyContent: "center", alignItems: "center" },
   searchSection: {
-    padding: 15,
+    paddingHorizontal: 20,
     backgroundColor: COLORS.primaryBlue,
-    borderBottomLeftRadius: 20,
-    borderBottomRightRadius: 20,
+    paddingBottom: 25,
+    paddingTop:
+      Platform.OS === "android" ? (StatusBar.currentHeight || 0) + 20 : 20,
+  },
+  headerTitle: {
+    color: COLORS.white,
+    fontSize: 24,
+    fontWeight: "bold",
+    marginBottom: 10,
   },
   searchBar: {
     flexDirection: "row",
@@ -197,23 +183,21 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.white,
     paddingHorizontal: 15,
     borderRadius: 12,
-    height: 45,
+    height: 48,
+    elevation: 3,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
-  searchInput: {
-    flex: 1,
-    marginLeft: 10,
-    fontSize: 15,
-    color: COLORS.textDark,
-  },
-  listContent: { paddingBottom: 20 },
+  searchInput: { flex: 1, marginLeft: 10, color: COLORS.textDark },
   chatCard: {
     flexDirection: "row",
-    alignItems: "center",
-    padding: 15,
+    padding: 16,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.borderGray,
+    alignItems: "center",
   },
-  avatarContainer: { position: "relative" },
   avatarCircle: {
     width: 55,
     height: 55,
@@ -222,44 +206,28 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  avatarText: { color: COLORS.white, fontSize: 20, fontWeight: "bold" },
-  onlineStatus: {
-    position: "absolute",
-    bottom: 2,
-    right: 2,
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: COLORS.onlineGreen,
-    borderWidth: 2,
-    borderColor: COLORS.white,
-  },
+  avatarText: { color: COLORS.white, fontSize: 22, fontWeight: "bold" },
   chatInfo: { flex: 1, marginLeft: 15 },
-  chatHeaderRow: {
+  nameRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 4,
   },
-  userName: { fontSize: 16, color: COLORS.textDark, fontWeight: "500" },
-  unreadText: { fontWeight: "bold", color: "#000" },
-  chatDate: { fontSize: 12, color: COLORS.textGray },
-  lastMessage: { fontSize: 14, color: COLORS.textGray },
-  unreadMessageText: { color: COLORS.textDark, fontWeight: "600" },
+  userName: { fontSize: 16, fontWeight: "700", color: COLORS.textDark },
+  dateText: { fontSize: 12, color: COLORS.textGray },
+  lastMessage: { color: COLORS.textGray, marginTop: 4, fontSize: 14 },
   unreadDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: COLORS.primaryBlue,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: COLORS.accentGold,
     marginLeft: 10,
   },
-  emptyContainer: {
-    alignItems: "center",
-    marginTop: 100,
-  },
+  center: { flex: 1, justifyContent: "center", alignItems: "center" },
   emptyText: {
-    marginTop: 10,
-    fontSize: 16,
+    textAlign: "center",
+    marginTop: 40,
     color: COLORS.textGray,
+    fontSize: 16,
   },
 });

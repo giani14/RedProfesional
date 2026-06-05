@@ -99,11 +99,12 @@ export default function ProfesionalIndex() {
   };
 
   const getInitials = (name: string) => {
-    if (!name || name === "Profesional") return "P";
-    const parts = name.trim().split(" ");
-    return parts.length >= 2
-      ? `${parts[0][0]}${parts[1][0]}`.toUpperCase()
-      : parts[0][0].toUpperCase();
+    if (!name) return "U"; // 'U' de Usuario por defecto
+    const parts = name.trim().split(/\s+/); // Divide por cualquier espacio
+    if (parts.length >= 2) {
+      return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+    }
+    return parts[0][0].toUpperCase();
   };
 
   if (loading) {
@@ -127,12 +128,12 @@ export default function ProfesionalIndex() {
           Red<Text style={{ color: COLORS.accentGold }}>Profesional</Text>
         </Text>
         <TouchableOpacity onPress={() => router.push("/HU-20" as any)}>
-  <Ionicons
-    name="notifications-outline"
-    size={28}
-    color={COLORS.white}
-  />
-</TouchableOpacity>
+          <Ionicons
+            name="notifications-outline"
+            size={28}
+            color={COLORS.white}
+          />
+        </TouchableOpacity>
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -144,23 +145,26 @@ export default function ProfesionalIndex() {
               style={styles.mainAvatar}
             />
           ) : (
+            /* Círculo de iniciales estilizado según la imagen */
             <View style={[styles.mainAvatar, styles.initialsContainer]}>
               <Text style={styles.initialsText}>
                 {getInitials(userData?.nombre || "")}
               </Text>
             </View>
           )}
+
           <View style={styles.welcomeTextContainer}>
             <Text style={styles.welcomeTitle}>
-              ¡Bienvenido, {userData?.nombre?.split(" ")[0]}!
+              ¡Bienvenido,{"\n"}
+              {userData?.nombre?.split(" ")[0]}!
             </Text>
+
             <View style={styles.roleBadge}>
-              <Text style={styles.roleText}>
-                {userData?.rol?.toUpperCase()}
-              </Text>
+              <Text style={styles.roleText}>{userData?.rol || "Cliente"}</Text>
             </View>
+
             <Text style={styles.welcomeSubtitle}>
-              Gestiona tu perfil y ofrece tus servicios a clientes.
+              Encuentra profesionales calificados para tus proyectos.
             </Text>
           </View>
         </View>
@@ -187,7 +191,7 @@ export default function ProfesionalIndex() {
             title="Subir portafolio"
             subtitle="Agrega trabajos realizados"
             color={COLORS.cardYellow}
-            onPress={() => router.push("/HU-09/subirPortafolio"as any)}
+            onPress={() => router.push("/HU-09/subirPortafolio" as any)}
           />
 
           <QuickAccessCard
@@ -240,16 +244,20 @@ const styles = StyleSheet.create({
     width: 100,
     height: 100,
     borderRadius: 50,
-    backgroundColor: COLORS.white,
+    //backgroundColor: COLORS.white,
   },
   initialsContainer: {
-    backgroundColor: COLORS.primaryBlue,
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 2,
-    borderColor: COLORS.white,
+    backgroundColor: "#1A4670", // El azul marino del ejemplo
+    justifyContent: "center", // Centrado vertical
+    alignItems: "center", // Centrado horizontal
+    borderRadius: 60,
   },
-  initialsText: { color: COLORS.white, fontSize: 35, fontWeight: "bold" },
+  initialsText: {
+    color: "#FFFFFF", // Texto blanco
+    fontSize: 60, // Tamaño grande para que sea bold
+    fontWeight: "bold",
+    textAlign: "center",
+  },
   welcomeTextContainer: { flex: 1, marginLeft: 20 },
   welcomeTitle: { fontSize: 22, fontWeight: "bold", color: COLORS.textDark },
   welcomeSubtitle: { fontSize: 13, color: COLORS.textGray, marginTop: 5 },

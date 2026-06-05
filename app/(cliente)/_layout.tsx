@@ -115,6 +115,22 @@ export default function ClienteLayout() {
           ),
         }}
       />
+      {/* --- EL TRUCO ESTÁ AQUÍ --- */}
+      {/* Ocultamos la carpeta HU-18 de la barra inferior */}
+      <Tabs.Screen
+        name="chat"
+        options={{
+          href: null, // <--- Esto hace que desaparezca de la barra de navegación
+        }}
+      />
+      {/* --- EL TRUCO ESTÁ AQUÍ --- */}
+      {/* Ocultamos la carpeta HU-18 de la barra inferior */}
+      <Tabs.Screen
+        name="Conversación"
+        options={{
+          href: null, // <--- Esto hace que desaparezca de la barra de navegación
+        }}
+      />
     </Tabs>
   );
 }

@@ -8,6 +8,7 @@ import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -49,63 +50,71 @@ interface Solicitud {
 }
 
 const SOLICITUD_MOCK = {
-  cliente: {
-    nombre: "María Fernández",
-    rol: "Cliente",
-  },
-  servicio: "Desarrollo de página web",
-  descripcion:
-    "Necesito una página web para mi negocio con secciones de inicio, servicios, sobre nosotros y contacto. El estilo debe ser moderno y responsivo.",
-  presupuesto: "S/. 2,500 - 3,000",
-  fecha: "10 de mayo de 2026 a las 10:30",
   archivos: [{ nombre: "requisitos_proyecto.pdf" }],
 };
 
-const formatearFecha = (fechaStr: string, locale: string = "es-ES"): string => {
-  const fecha = new Date(`${fechaStr}T00:00:00`);
-  if (isNaN(fecha.getTime())) {
-    return "Fecha no válida";
-  }
-  const opciones: Intl.DateTimeFormatOptions = {
+const formatearFechaReal = (fechaStr: string): string => {
+  if (!fechaStr) return "Sin fecha";
+  const fecha = new Date(fechaStr);
+  if (isNaN(fecha.getTime())) return "Fecha pendiente";
+
+  return fecha.toLocaleDateString("es-ES", {
     day: "numeric",
     month: "long",
     year: "numeric",
-  };
-  return new Intl.DateTimeFormat(locale, opciones).format(fecha);
+  });
 };
 
 export default function SolicitudDetalle() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const [estado, setEstado] = useState<string>("pendiente");
+  const [items, setItems] = useState<Solicitud | null>(null);
+  const [isCliente, setIsCliente] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [estado, setEstado] = useState<string>("");
+
   const [modalAceptar, setModalAceptar] = useState(false);
   const [modalRechazar, setModalRechazar] = useState(false);
   const [modalFinalizar, setModalFinalizar] = useState(false);
   const [motivoRechazo, setMotivoRechazo] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-
-  const [items, setItems] = useState<Solicitud | null>(null);
-  const [fechaAceptacionRechazo, setFechaAceptacionRechazo] = useState<
-    string | null
-  >(null);
 
   useEffect(() => {
     if (id) fetchData();
-  }, [id, estado]);
+  }, [id]);
 
   async function fetchData() {
     try {
       setIsLoading(true);
-      // Corregimos la desestructuración de la promesa
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
       const { data, error } = await supabase
         .from("solicitudes_servicio")
-        .select("*, perfiles:cliente_id (nombre_completo, ubicacion)") // Usamos el alias cliente_id
+        .select(
+          `
+          *,
+          perfiles:cliente_id (nombre_completo, ubicacion),
+          profesional:profesional_id (nombre_completo, ubicacion)
+        `,
+        )
         .eq("id", id)
         .single();
 
       if (error) throw error;
 
-      if (data) {
+      if (data && user) {
+        const soyCliente = data.cliente_id === user.id;
+        setIsCliente(soyCliente);
+
+        if (!soyCliente && data.estado?.toLowerCase() === "pendiente") {
+          await supabase
+            .from("solicitudes_servicio")
+            .update({ estado: "revisando" })
+            .eq("id", id);
+          data.estado = "revisando";
+        }
+
         setItems(data);
         setEstado(data.estado);
       }
@@ -115,38 +124,78 @@ export default function SolicitudDetalle() {
       setIsLoading(false);
     }
   }
-  // Corregimos la función de fecha para que no rompa con datos reales de la DB
-  const formatearFechaReal = (fechaStr: string): string => {
-    if (!fechaStr) return "Sin fecha";
-    const fecha = new Date(fechaStr);
-    if (isNaN(fecha.getTime())) return "Fecha pendiente";
 
-    return fecha.toLocaleDateString("es-ES", {
-      day: "numeric",
-      month: "long",
-      year: "numeric",
-    });
+  const cancelarSolicitud = async () => {
+    Alert.alert("Cancelar", "¿Seguro que deseas cancelar esta solicitud?", [
+      { text: "No" },
+      {
+        text: "Sí, cancelar",
+        style: "destructive",
+        onPress: async () => {
+          const { error } = await supabase
+            .from("solicitudes_servicio")
+            .update({ estado: "cancelado" })
+            .eq("id", id);
+          if (!error) router.back();
+        },
+      },
+    ]);
   };
+
   const confirmarAceptar = async () => {
     try {
-      const { error } = await supabase
+      setIsLoading(true);
+      const fechaActualISO = new Date().toISOString();
+
+      // 1. Primero aseguramos la solicitud (Esto es lo que ya funcionaba)
+      const { error: errorSolicitud } = await supabase
         .from("solicitudes_servicio")
         .update({
-          estado: "en_proceso", // El profesional acepta e inicia el trabajo
-          fecha_aceptada_rechazada: new Date().toISOString(),
+          estado: "aceptada",
+          fecha_aceptada_rechazada: fechaActualISO,
         })
         .eq("id", id);
-      setEstado("en_proceso");
-      if (error) throw error;
+
+      if (errorSolicitud) throw errorSolicitud;
+
+      // 2. Intentamos crear el chat en un bloque separado para que no rompa lo anterior
+      try {
+        const { data: chatExistente } = await supabase
+          .from("chats")
+          .select("id")
+          .eq("solicitud_id", id)
+          .maybeSingle();
+
+        if (!chatExistente) {
+          await supabase.from("chats").insert([
+            {
+              solicitud_id: id,
+              cliente_id: items?.cliente_id,
+              profesional_id: items?.profesional_id,
+            },
+          ]);
+        }
+      } catch (chatErr) {
+        console.log(
+          "El chat no se creó, probablemente por políticas RLS:",
+          chatErr,
+        );
+        // No lanzamos error aquí para que la solicitud sí quede como 'aceptada'
+      }
+
+      setEstado("aceptada");
+      await fetchData();
     } catch (error: any) {
-      console.error("Error actualizando estado:", error.message);
+      // Este catch ahora solo atrapará errores de la SOLICITUD
+      Alert.alert("Error", "No se pudo actualizar la solicitud.");
     } finally {
       setModalAceptar(false);
+      setIsLoading(false);
     }
   };
-
   const confirmarRechazar = async () => {
     try {
+      setIsLoading(true);
       const { error } = await supabase
         .from("solicitudes_servicio")
         .update({
@@ -155,31 +204,36 @@ export default function SolicitudDetalle() {
           fecha_aceptada_rechazada: new Date().toISOString(),
         })
         .eq("id", id);
-      setEstado("rechazada");
       if (error) throw error;
+      setEstado("rechazada");
+      await fetchData();
     } catch (error: any) {
-      console.error("Error actualizando estado:", error.message);
+      console.error("Error al rechazar:", error.message);
     } finally {
       setModalRechazar(false);
       setMotivoRechazo("");
+      setIsLoading(false);
     }
   };
 
   const confirmarFinalizar = async () => {
     try {
+      setIsLoading(true);
       const { error } = await supabase
         .from("solicitudes_servicio")
         .update({
-          estado: "finalizado", // Termina el trabajo
+          estado: "finalizado",
           actualizado_at: new Date().toISOString(),
         })
         .eq("id", id);
-      setEstado("finalizado");
       if (error) throw error;
+      setEstado("finalizado");
+      await fetchData();
     } catch (error: any) {
-      console.error("Error al finalizar servicio:", error.message);
+      console.error("Error al finalizar:", error.message);
     } finally {
       setModalFinalizar(false);
+      setIsLoading(false);
     }
   };
 
@@ -188,11 +242,12 @@ export default function SolicitudDetalle() {
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={COLORS.primaryBlue} />
-          <Text style={styles.loadingText}>Cargando detalle...</Text>
+          <Text style={styles.loadingText}>Procesando cambios...</Text>
         </View>
       </SafeAreaView>
     );
   }
+
   return (
     <SafeAreaView style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
@@ -204,7 +259,9 @@ export default function SolicitudDetalle() {
         <Text style={styles.headerLogo}>
           Red<Text style={{ color: COLORS.accentGold }}>Profesional</Text>
         </Text>
-        <TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => router.push("/HU-17/notificacionCliente")}
+        >
           <Ionicons
             name="notifications-outline"
             size={26}
@@ -222,11 +279,11 @@ export default function SolicitudDetalle() {
         <ProfileCard
           nombre={items?.perfiles?.nombre_completo || "Cargando..."}
           rol={items?.perfiles?.ubicacion || "Cargando..."}
-          estado={(items?.estado as any) || "pendiente"}
+          estado={estado || "pendiente"}
         />
 
         <InfoSection
-          label="Servicio solicitado"
+          label="Servicio"
           value={items?.proyecto || "Cargando..."}
         />
         <InfoSection
@@ -234,12 +291,12 @@ export default function SolicitudDetalle() {
           value={items?.descripcion_problema || "Cargando..."}
         />
         <InfoSection
-          label="Presupuesto estimado"
-          value={items?.presupuesto + " $" || "Cargando..."}
+          label="Presupuesto"
+          value={items?.presupuesto ? `${items.presupuesto} $` : "Por acordar"}
         />
         <InfoSection
-          label="Fecha estimada"
-          value={formatearFecha(items?.fecha_estimada || "")}
+          label="Fecha estimada de entrega"
+          value={formatearFechaReal(items?.fecha_estimada || "")}
         />
 
         <InfoSection label="Archivos adjuntos">
@@ -248,61 +305,128 @@ export default function SolicitudDetalle() {
           ))}
         </InfoSection>
 
-        {estado === "pendiente" && (
+        {(estado === "pendiente" || estado === "revisando") && (
           <View style={styles.actions}>
-            <TouchableOpacity
-              style={styles.btnAceptar}
-              onPress={() => setModalAceptar(true)}
-              activeOpacity={0.85}
-            >
-              <Ionicons name="checkmark" size={20} color={COLORS.white} />
-              <Text style={styles.btnAceptarText}>Aceptar solicitud</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.btnRechazar}
-              onPress={() => setModalRechazar(true)}
-              activeOpacity={0.85}
-            >
-              <Ionicons name="close" size={20} color={COLORS.danger} />
-              <Text style={styles.btnRechazarText}>Rechazar solicitud</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {(estado === "aceptada" || estado === "en_proceso") && (
-          <View style={styles.actions}>
-            <TouchableOpacity
-              style={styles.btnFinalizar}
-              onPress={() => setModalFinalizar(true)}
-              activeOpacity={0.85}
-            >
-              <Ionicons name="checkmark-done" size={20} color={COLORS.white} />
-              <Text style={styles.btnAceptarText}>Finalizar servicio</Text>
-            </TouchableOpacity>
+            {isCliente ? (
+              <>
+                <TouchableOpacity
+                  style={[
+                    styles.btnAceptar,
+                    { backgroundColor: COLORS.accentGold },
+                  ]}
+                  onPress={() =>
+                    router.push({
+                      pathname: "/HU-15/solicitudServicio",
+                      params: { id: items?.id, editMode: "true" },
+                    })
+                  }
+                >
+                  <Ionicons
+                    name="create-outline"
+                    size={20}
+                    color={COLORS.white}
+                  />
+                  <Text style={styles.btnAceptarText}>Editar solicitud</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.btnRechazar}
+                  onPress={cancelarSolicitud}
+                >
+                  <Ionicons
+                    name="trash-outline"
+                    size={20}
+                    color={COLORS.danger}
+                  />
+                  <Text style={styles.btnRechazarText}>Cancelar solicitud</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                <TouchableOpacity
+                  style={styles.btnAceptar}
+                  onPress={() => setModalAceptar(true)}
+                >
+                  <Ionicons name="checkmark" size={20} color={COLORS.white} />
+                  <Text style={styles.btnAceptarText}>Aceptar solicitud</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.btnRechazar}
+                  onPress={() => setModalRechazar(true)}
+                >
+                  <Ionicons name="close" size={20} color={COLORS.danger} />
+                  <Text style={styles.btnRechazarText}>Rechazar solicitud</Text>
+                </TouchableOpacity>
+              </>
+            )}
           </View>
         )}
 
         {estado === "aceptada" && (
-          <View style={[styles.banner, { backgroundColor: COLORS.successBg }]}>
-            <Ionicons
-              name="checkmark-circle"
-              size={20}
-              color={COLORS.successText}
-            />
-            <Text style={[styles.bannerText, { color: COLORS.successText }]}>
-              Solicitud aceptada el{" "}
-              {formatearFecha(items?.fecha_aceptada_rechazada || "")}
-            </Text>
-          </View>
-        )}
+          <View style={styles.actions}>
+            <TouchableOpacity
+              style={styles.btnChat}
+              onPress={async () => {
+                if (!id) return;
+                try {
+                  setIsLoading(true);
+                  let { data, error } = await supabase
+                    .from("chats")
+                    .select("id")
+                    .eq("solicitud_id", id)
+                    .maybeSingle();
+                  if (!data) {
+                    const { data: nChat } = await supabase
+                      .from("chats")
+                      .insert([
+                        {
+                          solicitud_id: id,
+                          cliente_id: items?.cliente_id,
+                          profesional_id: items?.profesional_id,
+                        },
+                      ])
+                      .select("id")
+                      .single();
+                    data = nChat;
+                  }
+                  if (data) router.push(`/chat/${data.id}`); // Navegación limpia
+                } catch (err) {
+                  Alert.alert("Error", "No se pudo conectar al chat.");
+                } finally {
+                  setIsLoading(false);
+                }
+              }}
+            >
+              <Ionicons name="chatbubbles-outline" size={20} color="#fff" />
+              <Text style={styles.textBtnChat}>Ir al chat</Text>
+            </TouchableOpacity>
 
-        {estado === "en_proceso" && (
-          <View style={[styles.banner, { backgroundColor: "#DBEAFE" }]}>
-            <Ionicons name="time" size={20} color="#1E40AF" />
-            <Text style={[styles.bannerText, { color: "#1E40AF" }]}>
-              Servicio en proceso. El cliente espera tu trabajo.
-            </Text>
+            {!isCliente && (
+              <TouchableOpacity
+                style={styles.btnFinalizar}
+                onPress={() => setModalFinalizar(true)}
+              >
+                <Ionicons
+                  name="checkmark-done"
+                  size={20}
+                  color={COLORS.white}
+                />
+                <Text style={styles.btnAceptarText}>Finalizar servicio</Text>
+              </TouchableOpacity>
+            )}
+
+            <View
+              style={[styles.banner, { backgroundColor: COLORS.successBg }]}
+            >
+              <Ionicons
+                name="checkmark-circle"
+                size={20}
+                color={COLORS.successText}
+              />
+              <Text style={[styles.bannerText, { color: COLORS.successText }]}>
+                Solicitud aceptada el{" "}
+                {formatearFechaReal(items?.fecha_aceptada_rechazada || "")}
+              </Text>
+            </View>
           </View>
         )}
 
@@ -315,9 +439,7 @@ export default function SolicitudDetalle() {
             />
             <Text style={[styles.bannerText, { color: COLORS.successText }]}>
               Servicio finalizado el{" "}
-              {formatearFecha(
-                items?.actualizado_at || new Date().toISOString(),
-              )}
+              {formatearFechaReal(items?.actualizado_at || "")}
             </Text>
           </View>
         )}
@@ -327,7 +449,7 @@ export default function SolicitudDetalle() {
             <Ionicons name="close-circle" size={20} color={COLORS.danger} />
             <Text style={[styles.bannerText, { color: COLORS.danger }]}>
               Solicitud rechazada el{" "}
-              {formatearFecha(items?.fecha_aceptada_rechazada || "")}
+              {formatearFechaReal(items?.fecha_aceptada_rechazada || "")}
             </Text>
           </View>
         )}
@@ -353,6 +475,7 @@ export default function SolicitudDetalle() {
         onConfirm={confirmarRechazar}
         onCancel={() => {
           setModalRechazar(false);
+
           setMotivoRechazo("");
         }}
         withInput
@@ -381,11 +504,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 12,
   },
-  loadingText: {
-    fontSize: 14,
-    color: COLORS.textGray,
-    fontWeight: "600",
-  },
+  loadingText: { fontSize: 14, color: COLORS.textGray, fontWeight: "600" },
   header: {
     backgroundColor: COLORS.primaryBlue,
     height: 90,
@@ -414,8 +533,18 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   btnAceptarText: { color: COLORS.white, fontSize: 15, fontWeight: "bold" },
+  btnChat: {
+    backgroundColor: COLORS.primaryBlue,
+    paddingVertical: 14,
+    borderRadius: 10,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 8,
+  },
+  textBtnChat: { color: COLORS.white, fontSize: 15, fontWeight: "bold" },
   btnFinalizar: {
-    backgroundColor: "#10B981", // Verde para finalizar
+    backgroundColor: "#10B981",
     paddingVertical: 14,
     borderRadius: 10,
     flexDirection: "row",
@@ -439,8 +568,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    padding: 12,
     borderRadius: 10,
     marginTop: 10,
   },

@@ -194,7 +194,7 @@ export default function ClientePerfil() {
           </View>
 
           <Text style={styles.userName}>{userData?.nombre}</Text>
-          <Text style={styles.userJob}>Cliente Verificado</Text>
+          <Text style={styles.userJob}>Profesional Verificado</Text>
           <View style={styles.roleBadge}>
             <Text style={styles.roleText}>{userData?.rol?.toUpperCase()}</Text>
           </View>

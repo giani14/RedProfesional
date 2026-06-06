@@ -1,6 +1,7 @@
+import { supabase } from "@/lib/supabase"; // Conexión a tu Supabase
 import { Ionicons } from "@expo/vector-icons";
-import { Stack } from "expo-router";
-import React, { useEffect, useState } from "react";
+import { Stack, useFocusEffect, useRouter } from "expo-router";
+import React, { useCallback, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -24,17 +25,21 @@ const COLORS = {
 };
 
 interface ProyectoItemProps {
+  id: string; // Agregamos el ID
   titulo: string;
   cliente: string;
   fecha: string;
   estado: "Pendiente" | "En progreso" | "Finalizado";
+  onPress: () => void; // Agregamos la función onPress
 }
 
 const ProyectoCard = ({
+  id,
   titulo,
   cliente,
   fecha,
   estado,
+  onPress, // Extraemos onPress
 }: ProyectoItemProps) => {
   const getStatusStyle = () => {
     switch (estado) {
@@ -73,7 +78,7 @@ const ProyectoCard = ({
         </View>
       </View>
 
-      <TouchableOpacity style={styles.detailButton}>
+      <TouchableOpacity style={styles.detailButton} onPress={onPress}>
         <Text style={styles.detailButtonText}>Ver detalles</Text>
         <Ionicons name="chevron-forward" size={16} color={COLORS.primaryBlue} />
       </TouchableOpacity>
@@ -82,43 +87,83 @@ const ProyectoCard = ({
 };
 
 export default function ProyectosProfesional() {
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("Todos");
   const [proyectos, setProyectos] = useState<any[]>([]);
 
-  useEffect(() => {
-    // Simulación de carga de proyectos desde Supabase
-    const loadProyectos = async () => {
-      setLoading(true);
-      const mockProyectos = [
-        {
-          id: "1",
-          titulo: "Desarrollo E-commerce",
-          cliente: "Marvin Anghelo",
-          fecha: "01/05/2026",
-          estado: "En progreso",
-        },
-        {
-          id: "2",
-          titulo: "Mantenimiento de Base de Datos",
-          cliente: "Sistemas UMSS",
-          fecha: "20/04/2026",
-          estado: "Finalizado",
-        },
-        {
-          id: "3",
-          titulo: "App Móvil Inventario",
-          cliente: "Tech Bol",
-          fecha: "05/05/2026",
-          estado: "Pendiente",
-        },
-      ];
-      setProyectos(mockProyectos);
-      setLoading(false);
-    };
+  // Mapeo para transformar los estados de la Base de Datos a los de tu UI
+  const mapearEstado = (
+    estadoBD: string,
+  ): "Pendiente" | "En progreso" | "Finalizado" => {
+    const estado = estadoBD?.toLowerCase();
+    if (estado === "en_proceso" || estado === "aceptada") return "En progreso";
+    if (estado === "finalizado") return "Finalizado";
+    return "Pendiente"; // Para 'pendiente' o 'revisando'
+  };
 
-    loadProyectos();
-  }, []);
+  const formatearFechaSimple = (fechaStr: string): string => {
+    if (!fechaStr) return "Sin fecha";
+    const fecha = new Date(fechaStr);
+    if (isNaN(fecha.getTime())) return "Fecha inválida";
+    return fecha.toLocaleDateString("es-ES", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+  };
+
+  // Carga asíncrona real desde Supabase usando seguridad por Profesional ID
+  const loadProyectos = async () => {
+    try {
+      setLoading(true);
+
+      // Obtener el usuario autenticado (Profesional)
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Traemos las solicitudes/proyectos asignados al profesional
+      const { data, error } = await supabase
+        .from("solicitudes_servicio")
+        .select(
+          `
+          id,
+          proyecto,
+          estado,
+          fecha_solicitud,
+          perfiles:cliente_id (nombre_completo)
+        `,
+        )
+        .eq("profesional_id", user.id)
+        .order("fecha_solicitud", { ascending: false });
+
+      if (error) throw error;
+
+      // Adaptar los datos de Supabase a la estructura que requiere tu ProyectoCard
+      const proyectosAdaptados = (data || []).map((item: any) => ({
+        id: item.id,
+        titulo: item.proyecto || "Sin título",
+        cliente: item.perfiles?.nombre_completo || "Cliente",
+        fecha: formatearFechaSimple(item.fecha_solicitud),
+        estado: mapearEstado(item.estado),
+      }));
+
+      setProyectos(proyectosAdaptados);
+    } catch (error: any) {
+      console.error("Error cargando proyectos:", error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Recarga automáticamente los proyectos cada vez que la pantalla toma foco (ej. tras aceptar una solicitud)
+  useFocusEffect(
+    useCallback(() => {
+      loadProyectos();
+    }, []),
+  );
 
   const filteredData =
     filter === "Todos"
@@ -170,10 +215,17 @@ export default function ProyectosProfesional() {
           contentContainerStyle={styles.listContent}
           renderItem={({ item }) => (
             <ProyectoCard
+              id={item.id}
               titulo={item.titulo}
               cliente={item.cliente}
               fecha={item.fecha}
               estado={item.estado}
+              onPress={() =>
+                router.push({
+                  pathname: "/HU-16/detalleProyecto", // RUTA SOLICITADA
+                  params: { id: item.id }, // Enviamos el ID dinámico a la pantalla
+                })
+              }
             />
           )}
           ListEmptyComponent={

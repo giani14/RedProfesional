@@ -15,7 +15,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.RedProfesional"
+      "bundleIdentifier": "com.marvin.redprofesional"
     },
     "android": {
       "adaptiveIcon": {
@@ -24,19 +24,22 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.anonymous.RedProfesional"
+      "package": "com.marvin.redprofesional"
     },
     "web": {
       "bundler": "metro",
       "output": "static",
       "favicon": "./assets/images/favicon.png"
     },
-    "plugins": [
-      "expo-router",
-      "@react-native-community/datetimepicker"
-    ],
+    "plugins": ["expo-router", "@react-native-community/datetimepicker"],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "034b0a3d-1979-4dd0-a93f-626e1e5d5d0b"
+      }
     }
   }
 }

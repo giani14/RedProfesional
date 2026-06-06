@@ -161,7 +161,7 @@ export default function HomeScreen() {
           )}
           <View style={styles.welcomeTextContainer}>
             <Text style={styles.welcomeTitle}>
-              ¡Bienvenido, {userData?.nombre?.split(" ")[0]}!
+              ¡Bienvenido, {userData?.nombre?.split(" ")[0] || "Lu"}!
             </Text>
             <View style={styles.roleBadge}>
               <Text style={styles.roleText}>{userData?.rol}</Text>

@@ -9,7 +9,7 @@ import {
   ScrollView,
   Text,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -27,7 +27,8 @@ const COLORS = {
 
 export default function ConfirProfeScreen() {
   const router = useRouter();
-  // RECIBIMOS TODOS LOS PARÁMETROS COORDINADOS
+
+  // RECIBIMOS TODOS LOS PARÁMETROS COORDINADOS (Incluyendo los del certificado)
   const {
     nombre,
     especialidad,
@@ -35,6 +36,9 @@ export default function ConfirProfeScreen() {
     ubicacion,
     descripcion,
     telefono,
+    certificadoUri,
+    certificadoName,
+    certificadoMime,
   } = useLocalSearchParams();
   const [isSaving, setIsSaving] = useState(false);
 
@@ -47,8 +51,40 @@ export default function ConfirProfeScreen() {
       } = await supabase.auth.getUser();
       if (!user) throw new Error("No se encontró una sesión activa.");
 
-      // 1. Actualizar 'perfiles' con el Rol y la Ubicación (Ciudad)
-      // Nota: Usamos 'ciudad' porque es lo que intentamos filtrar en el buscador
+      // 1. Subir el archivo al Storage Bucket si existe
+      let urlCertificadoFinal = null;
+
+      if (certificadoUri) {
+        // Transformar la ruta local en un BLOB binario compatible con Supabase Storage
+        const response = await fetch(certificadoUri as string);
+        const blob = await response.blob();
+
+        // Creamos una extensión limpia o usamos la por defecto
+        const fileExt = (certificadoName as string)?.split(".").pop() || "pdf";
+        const pathArchivo = `${user.id}/certificado_${Date.now()}.${fileExt}`;
+
+        // Subida al Storage en el Bucket 'certificados'
+        const { error: uploadError } = await supabase.storage
+          .from("certificados")
+          .upload(pathArchivo, blob, {
+            contentType:
+              (certificadoMime as string) || "application/octet-stream",
+            upsert: true,
+          });
+
+        if (uploadError) throw new Error(`Storage: ${uploadError.message}`);
+
+        // Obtener la URL pública del archivo recién subido
+        const { data: urlData } = supabase.storage
+          .from("certificados")
+          .getPublicUrl(pathArchivo);
+
+        if (urlData) {
+          urlCertificadoFinal = urlData.publicUrl;
+        }
+      }
+
+      // 2. Actualizar 'perfiles' con el Rol y la Ubicación (Ciudad)
       const { error: perfilError } = await supabase
         .from("perfiles")
         .update({
@@ -61,20 +97,31 @@ export default function ConfirProfeScreen() {
 
       if (perfilError) throw perfilError;
 
-      // 2. Guardar información técnica en 'profesionales_info'
+      // Decodificamos de manera segura el parámetro por si trae caracteres especiales
+      const experienciaTextoValido = experiencia
+        ? decodeURIComponent(experiencia as string)
+        : "Sin experiencia";
+
+      // 3. Guardar información técnica y de verificación en 'profesionales_info'
       const { error: profeError } = await supabase
         .from("profesionales_info")
         .upsert({
           id: user.id,
           titulo_especialidad: especialidad,
-          experiencia: parseInt(experiencia as string) || 0,
+          experiencia: experienciaTextoValido,
           biografia: descripcion,
-          aprobado: true,
+          aprobado: true, // Mantiene tu lógica base de aprobación inicial si aplica
+          url_certificado: urlCertificadoFinal, // Insertamos la URL de Supabase Storage
+          estado_verificacion: certificadoUri ? "Pendiente" : "No verificado", // Si envió, queda en revisión
         });
 
       if (profeError) throw profeError;
 
-      // 3. Éxito
+      // 4. Éxito total
+      Alert.alert(
+        "¡Registro Completado!",
+        "Tus datos y certificados se enviaron a moderación.",
+      );
       router.push("/HU-05/asigProfe");
     } catch (error: any) {
       console.error("Error al guardar:", error.message);
@@ -87,7 +134,7 @@ export default function ConfirProfeScreen() {
     }
   };
 
-  // Pequeño componente para mostrar los datos en la tarjeta
+  // Componente para mostrar los datos en la tarjeta
   const InfoRow = ({ label, value, icon }: any) => (
     <View style={{ marginBottom: 15 }}>
       <View
@@ -105,7 +152,7 @@ export default function ConfirProfeScreen() {
         </Text>
       </View>
       <Text style={{ fontSize: 16, color: "#333", paddingLeft: 28 }}>
-        {value || "No especificado"}
+        {value ? decodeURIComponent(value as string) : "No especificado"}
       </Text>
     </View>
   );
@@ -321,6 +368,23 @@ export default function ConfirProfeScreen() {
                     name="call-outline"
                     size={18}
                     color={COLORS.primaryBlue}
+                  />
+                }
+              />
+
+              {/* Fila del estado del documento adjunto */}
+              <InfoRow
+                label="Certificado Adjunto"
+                value={
+                  certificadoName
+                    ? decodeURIComponent(certificadoName as string)
+                    : "No seleccionado"
+                }
+                icon={
+                  <Ionicons
+                    name="document-attach-outline"
+                    size={18}
+                    color={certificadoName ? "#10B981" : COLORS.primaryBlue}
                   />
                 }
               />

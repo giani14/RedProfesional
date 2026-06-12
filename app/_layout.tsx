@@ -117,7 +117,40 @@ export default function RootLayout() {
               router.replace("/(cliente)");
             }
           } else if (userRol === "Administrador") {
-            if (rootSegment !== "(admin)") {
+            // Lista de HUs autorizadas para el administrador
+            const allowedHUs = [
+              "HU-03",
+              "HU-04",
+              "HU-05",
+              "HU-06",
+              "HU-07",
+              "HU-08",
+              "HU-09",
+              "HU-10",
+              "HU-11",
+              "HU-13",
+              "HU-14",
+              "HU-15",
+              "HU-16",
+              "HU-17",
+              "HU-18",
+              "HU-19",
+              "HU-20",
+              "HU-21",
+              "HU-22",
+              "HU-23", // <-- Al entrar aquí, ahora sí será validado correctamente
+              "HU-24",
+              "HU-25",
+              "HU-26", // <-- CORREGIDO: Se eliminó el espacio en blanco al final ("HU-26 ")
+              "chat",
+            ];
+
+            // Evaluamos si está en la carpeta raíz (admin) o en una HU permitida
+            const isAllowed =
+              rootSegment === "(admin)" || allowedHUs.includes(rootSegment);
+
+            // CORREGIDO: Ahora evaluamos con 'isAllowed' en lugar de bloquear todo lo que no sea "(admin)"
+            if (!isAllowed) {
               router.replace("/(admin)");
             }
           }

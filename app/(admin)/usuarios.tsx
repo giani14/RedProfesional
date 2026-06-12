@@ -2,16 +2,16 @@ import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { Stack, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    Modal,
-    Platform,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Modal,
+  Platform,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { supabase } from "../../lib/supabase";
 
@@ -251,12 +251,9 @@ export default function GestionUsuariosScreen() {
                       uri: `https://ui-avatars.com/api/?name=${user.nombre_completo}&background=random&color=fff`,
                     }
               }
-              onPress={() =>
-                router.push({
-                  pathname: "../detalleUsuario",
-                  params: { id: user.id },
-                })
-              }
+              onPress={() => {
+                router.push(`/HU-23/detalleUsuario?id=${user.id}`);
+              }}
             />
           ))
         )}

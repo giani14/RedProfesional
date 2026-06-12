@@ -4,6 +4,7 @@ import { Href, useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Image,
   Modal,
   Platform,
@@ -27,9 +28,17 @@ interface Profesional {
   descripcion: string;
 }
 
+// Opciones predefinidas para el reporte alineadas con la base de datos
+const REPORT_REASONS = [
+  "Comportamiento inadecuado o spam",
+  "Lenguaje ofensivo o acoso",
+  "Estafa o fraude",
+  "No cumple con el servicio acordado",
+  "Otros",
+];
+
 export default function BuscarClienteScreen() {
   const router = useRouter();
-  // Recibe parámetros si el usuario presionó una categoría rápida desde el Inicio
   const { query } = useLocalSearchParams<{ query?: string }>();
 
   const [busqueda, setBusqueda] = useState(query || "");
@@ -38,7 +47,7 @@ export default function BuscarClienteScreen() {
   const [resultados, setResultados] = useState<Profesional[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // --- ESTADOS PARA FILTROS DE HU-12 ---
+  // --- ESTADOS PARA FILTROS HU-12 ---
   const [modalFiltrosVisible, setModalFiltrosVisible] = useState(false);
   const [tempUbicacion, setTempUbicacion] = useState<string | null>(null);
   const [tempCalificacion, setTempCalificacion] = useState<number | null>(null);
@@ -46,6 +55,16 @@ export default function BuscarClienteScreen() {
   const [filtroCalificacion, setFiltroCalificacion] = useState<number | null>(
     null,
   );
+
+  // ---- NUEVOS ESTADOS PARA MODO SELECCIÓN (ESTILO WHATSAPP) ----
+  const [selectedProf, setSelectedProf] = useState<Profesional | null>(null);
+  const [showMenuDropdown, setShowMenuDropdown] = useState(false);
+
+  // ---- ESTADOS FORMULARIO DE REPORTE ----
+  const [reportModalVisible, setReportModalVisible] = useState(false);
+  const [selectedReason, setSelectedReason] = useState("");
+  const [reportDescription, setReportDescription] = useState("");
+  const [sendingReport, setSendingReport] = useState(false);
 
   const categorias = [
     "Electricista",
@@ -65,21 +84,15 @@ export default function BuscarClienteScreen() {
     async (searchTerm: string, loc: string | null, cal: number | null) => {
       setLoading(true);
       try {
-        // Limpiamos espacios extra para una búsqueda predictiva exacta
         const cleanTerm = searchTerm.trim().replace(/\s+/g, " ");
-
-        // Guardamos el término activo para saber si debemos mostrar la "Mejor opción" o no
         setActiveSearchTerm(cleanTerm);
         const lowerTerm = cleanTerm.toLowerCase();
 
-        // Obtenemos a todos los profesionales activos para evitar crashes
-        // de columnas inexistentes en Supabase y poder filtrarlos con total precisión.
         const { data, error } = await supabase
           .from("perfiles")
           .select("*")
           .eq("rol", "Profesional")
           .eq("estado", "activo");
-          console.log("Datos obtenidos de Supabase:", data);
 
         if (error) throw error;
 
@@ -91,7 +104,6 @@ export default function BuscarClienteScreen() {
         ];
 
         let mappedData: Profesional[] = (data || []).map((item, index) => {
-          // Buscamos dinámicamente el campo real de tu base de datos
           const especialidadReal =
             item.especialidad ||
             item.profesion ||
@@ -113,48 +125,34 @@ export default function BuscarClienteScreen() {
           };
         });
 
-        // FILTRADO ESTRICTO POR PREFIJO Y PALABRA
         if (cleanTerm !== "") {
           mappedData = mappedData.filter((p) => {
-            // Separamos en palabras para que detecte correctamente las iniciales
-            // (ej: si busca "E", encuentra "Electricista" pero descarta "Plomería")
             const wordsName = p.nombre_completo.toLowerCase().split(/\s+/);
             const wordsSpec = p.especialidad.toLowerCase().split(/\s+/);
-
             const matchName = wordsName.some((word) =>
               word.startsWith(lowerTerm),
             );
             const matchSpec = wordsSpec.some((word) =>
               word.startsWith(lowerTerm),
             );
-
             return matchName || matchSpec;
           });
         }
 
-        // --- APLICAR FILTROS HU-12 ---
         if (loc) {
-          // Filtro por ubicación exacto o parcial
           mappedData = mappedData.filter((p) =>
             p.ubicacion.toLowerCase().includes(loc.toLowerCase()),
           );
         }
 
         if (cal) {
-          // Filtro por calificación mínima (gte)
           mappedData = mappedData.filter((p) => p.calificacion >= cal);
         }
 
-        // Ordenamiento inteligente para rankear al profesional "Mejor opción" en el inicio
         mappedData.sort((a, b) => {
-          // 1. Mayor calificación (Rating)
           if (b.calificacion !== a.calificacion)
             return b.calificacion - a.calificacion;
-
-          // 2. Mayor cantidad de reseñas
           if (b.resenas !== a.resenas) return b.resenas - a.resenas;
-
-          // 3. Perfil completo (priorizamos a los que sí subieron avatar)
           return (b.avatar_url ? 1 : 0) - (a.avatar_url ? 1 : 0);
         });
 
@@ -171,9 +169,91 @@ export default function BuscarClienteScreen() {
   useEffect(() => {
     const timer = setTimeout(() => {
       fetchResultados(busqueda, filtroUbicacion, filtroCalificacion);
-    }, 350); // Debounce optimizado para autocompletado más fluido
+    }, 350);
     return () => clearTimeout(timer as any);
   }, [busqueda, fetchResultados, filtroUbicacion, filtroCalificacion]);
+
+  // --- CONTROL DE PRESIONADO DE TARJETAS ---
+  const handleProfPress = (prof: Profesional) => {
+    if (selectedProf) {
+      if (selectedProf.id === prof.id) {
+        setSelectedProf(null);
+      } else {
+        setSelectedProf(prof);
+      }
+      setShowMenuDropdown(false);
+    } else {
+      // Navegación por defecto si no está en modo selección
+      router.push({
+        pathname: "/HU-13/verPerfilProfe",
+        params: { id: prof.id },
+      } as unknown as Href);
+    }
+  };
+
+  const handleProfLongPress = (prof: Profesional) => {
+    setSelectedProf(prof);
+    setShowMenuDropdown(false);
+  };
+
+  const cancelSelection = () => {
+    setSelectedProf(null);
+    setShowMenuDropdown(false);
+  };
+
+  // --- ENVIAR REPORTE DESDE EL MODAL ---
+  const handleSendReport = async () => {
+    if (!selectedReason) {
+      Alert.alert("Error", "Por favor, selecciona un motivo para el reporte.");
+      return;
+    }
+    if (selectedReason === "Otros" && !reportDescription.trim()) {
+      Alert.alert("Error", "Por favor, detalla el motivo en la descripción.");
+      return;
+    }
+
+    setSendingReport(true);
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      // Buscamos si existe un chat activo previo con este profesional (puede ser nulo si no han hablado)
+      const { data: chatData } = await supabase
+        .from("chats")
+        .select("id")
+        .eq("cliente_id", user?.id)
+        .eq("profesional_id", selectedProf?.id)
+        .maybeSingle();
+
+      const { error } = await supabase.from("reportes").insert([
+        {
+          chat_id: chatData?.id || null, // Si no hay chat, se guarda como null
+          denunciante_id: user?.id,
+          denunciado_id: selectedProf?.id,
+          motivo: selectedReason,
+          descripcion: reportDescription.trim(),
+        },
+      ]);
+
+      if (error) throw error;
+
+      Alert.alert(
+        "Reporte Enviado",
+        `Tu reporte sobre ${selectedProf?.nombre_completo} ha sido registrado.`,
+      );
+      setReportModalVisible(false);
+      cancelSelection();
+    } catch (error) {
+      console.error("Error al reportar profesional:", error);
+      Alert.alert(
+        "Error",
+        "No se pudo procesar el reporte. Inténtalo de nuevo.",
+      );
+    } finally {
+      setSendingReport(false);
+    }
+  };
 
   const getSiglas = (name: string) => {
     if (!name) return "P";
@@ -194,55 +274,92 @@ export default function BuscarClienteScreen() {
       />
       <View style={styles.safeAreaSpacing} />
 
-      {/* --- HEADER (Sin botón de retroceso para no romper el Tab Navigator) --- */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Buscar profesionales</Text>
-      </View>
-
-      {/* --- BUSCADOR --- */}
-      <View style={styles.searchSection}>
-        <View style={styles.searchBar}>
-          <Ionicons name="search" size={20} color="#9CA3AF" />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="¿Qué servicio necesitas?"
-            placeholderTextColor="#9CA3AF"
-            value={busqueda}
-            onChangeText={(text) => {
-              setBusqueda(text);
-              if (categorias.includes(text)) setChipActivo(text);
-              else setChipActivo(null);
-            }}
-          />
-          {busqueda !== "" && (
-            <TouchableOpacity
-              onPress={() => {
-                setBusqueda("");
-                setChipActivo(null);
-              }}
-            >
-              <Ionicons name="close-circle" size={20} color="#9CA3AF" />
+      {/* --- HEADER DINÁMICO (ESTILO WHATSAPP) --- */}
+      {selectedProf ? (
+        <View style={styles.actionBar}>
+          <View style={styles.actionBarLeft}>
+            <TouchableOpacity onPress={cancelSelection} style={styles.iconBtn}>
+              <Ionicons name="arrow-back" size={24} color="white" />
             </TouchableOpacity>
-          )}
+            <Text style={styles.actionBarCount}>1</Text>
+          </View>
+
+          <View style={styles.actionBarRight}>
+            <TouchableOpacity
+              onPress={() => setShowMenuDropdown(!showMenuDropdown)}
+              style={styles.iconBtn}
+            >
+              <Ionicons name="ellipsis-vertical" size={22} color="white" />
+            </TouchableOpacity>
+
+            {showMenuDropdown && (
+              <View style={styles.dropdownMenu}>
+                <TouchableOpacity
+                  style={styles.dropdownItem}
+                  onPress={() => {
+                    setShowMenuDropdown(false);
+                    setSelectedReason("");
+                    setReportDescription("");
+                    setReportModalVisible(true);
+                  }}
+                >
+                  <Text style={styles.dropdownText}>Reportar profesional</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
         </View>
-        <TouchableOpacity
-          style={styles.searchBtn}
-          onPress={() =>
-            fetchResultados(busqueda, filtroUbicacion, filtroCalificacion)
-          }
-        >
-          <Ionicons name="search" size={24} color="white" />
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.filterBtn}
-          onPress={() => setModalFiltrosVisible(true)}
-        >
-          <Ionicons name="options" size={24} color="#1A3B63" />
-        </TouchableOpacity>
-      </View>
+      ) : (
+        <>
+          <View style={styles.header}>
+            <Text style={styles.headerTitle}>Buscar profesionales</Text>
+          </View>
+
+          <View style={styles.searchSection}>
+            <View style={styles.searchBar}>
+              <Ionicons name="search" size={20} color="#9CA3AF" />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="#¿Qué servicio necesitas?"
+                placeholderTextColor="#9CA3AF"
+                value={busqueda}
+                onChangeText={(text) => {
+                  setBusqueda(text);
+                  if (categorias.includes(text)) setChipActivo(text);
+                  else setChipActivo(null);
+                }}
+              />
+              {busqueda !== "" && (
+                <TouchableOpacity
+                  onPress={() => {
+                    setBusqueda("");
+                    setChipActivo(null);
+                  }}
+                >
+                  <Ionicons name="close-circle" size={20} color="#9CA3AF" />
+                </TouchableOpacity>
+              )}
+            </View>
+            <TouchableOpacity
+              style={styles.searchBtn}
+              onPress={() =>
+                fetchResultados(busqueda, filtroUbicacion, filtroCalificacion)
+              }
+            >
+              <Ionicons name="search" size={24} color="white" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.filterBtn}
+              onPress={() => setModalFiltrosVisible(true)}
+            >
+              <Ionicons name="options" size={24} color="#1A3B63" />
+            </TouchableOpacity>
+          </View>
+        </>
+      )}
 
       {/* --- CHIPS DE FILTROS ACTIVOS HU-12 --- */}
-      {(filtroUbicacion || filtroCalificacion) && (
+      {!selectedProf && (filtroUbicacion || filtroCalificacion) && (
         <View>
           <ScrollView
             horizontal
@@ -304,38 +421,40 @@ export default function BuscarClienteScreen() {
       )}
 
       {/* --- CHIPS DE CATEGORÍA --- */}
-      <View
-        style={{ marginTop: filtroUbicacion || filtroCalificacion ? 5 : 15 }}
-      >
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={[styles.chipsContainer, { marginTop: 0 }]}
+      {!selectedProf && (
+        <View
+          style={{ marginTop: filtroUbicacion || filtroCalificacion ? 5 : 15 }}
         >
-          {categorias.map((cat) => (
-            <TouchableOpacity
-              key={cat}
-              style={[styles.chip, chipActivo === cat && styles.chipActive]}
-              onPress={() => {
-                const isActivating = chipActivo !== cat;
-                setChipActivo(isActivating ? cat : null);
-                setBusqueda(isActivating ? cat : "");
-              }}
-            >
-              <Text
-                style={[
-                  styles.chipText,
-                  chipActivo === cat && styles.chipTextActive,
-                ]}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.chipsContainer}
+          >
+            {categorias.map((cat) => (
+              <TouchableOpacity
+                key={cat}
+                style={[styles.chip, chipActivo === cat && styles.chipActive]}
+                onPress={() => {
+                  const isActivating = chipActivo !== cat;
+                  setChipActivo(isActivating ? cat : null);
+                  setBusqueda(isActivating ? cat : "");
+                }}
               >
-                {cat}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      </View>
+                <Text
+                  style={[
+                    styles.chipText,
+                    chipActivo === cat && styles.chipTextActive,
+                  ]}
+                >
+                  {cat}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      )}
 
-      {/* --- RESULTADOS DINÁMICOS --- */}
+      {/* --- LISTA DE RESULTADOS --- */}
       <ScrollView
         showsVerticalScrollIndicator={false}
         style={styles.body}
@@ -381,7 +500,7 @@ export default function BuscarClienteScreen() {
           </View>
         ) : (
           resultados.map((prof, index) => {
-            // La Mejor Opción SOLO se muestra en la primera fila Y si el usuario ha escrito algo O aplicado filtros
+            const isSelected = selectedProf?.id === prof.id;
             const hasActiveSearchOrFilter =
               activeSearchTerm !== "" ||
               filtroUbicacion !== null ||
@@ -389,11 +508,19 @@ export default function BuscarClienteScreen() {
             const isMejorOpcion = index === 0 && hasActiveSearchOrFilter;
 
             return (
-              <View
+              <TouchableOpacity
                 key={prof.id}
-                style={[styles.card, isMejorOpcion && styles.cardHighlight]}
+                activeOpacity={0.9}
+                style={[
+                  styles.card,
+                  isMejorOpcion && styles.cardHighlight,
+                  isSelected && styles.cardSelected,
+                ]}
+                onPress={() => handleProfPress(prof)}
+                onLongPress={() => handleProfLongPress(prof)}
+                delayLongPress={500}
               >
-                {isMejorOpcion && (
+                {isMejorOpcion && !isSelected && (
                   <View style={styles.badgeContainer}>
                     <Ionicons
                       name="trophy"
@@ -406,15 +533,20 @@ export default function BuscarClienteScreen() {
                 )}
 
                 <View style={styles.cardRow}>
-                  {prof.avatar_url ? (
+                  {prof.avatar_url && !isSelected ? (
                     <Image
                       source={{ uri: prof.avatar_url }}
                       style={styles.avatar}
                     />
                   ) : (
-                    <View style={styles.avatarPlaceholder}>
+                    <View
+                      style={[
+                        styles.avatarPlaceholder,
+                        isSelected && styles.avatarSelected,
+                      ]}
+                    >
                       <Text style={styles.avatarText}>
-                        {getSiglas(prof.nombre_completo)}
+                        {isSelected ? "✓" : getSiglas(prof.nombre_completo)}
                       </Text>
                     </View>
                   )}
@@ -452,6 +584,7 @@ export default function BuscarClienteScreen() {
                 <View style={styles.actionsRow}>
                   <TouchableOpacity
                     style={styles.outlineBtn}
+                    disabled={!!selectedProf}
                     onPress={() =>
                       router.push({
                         pathname: "/HU-13/verPerfilProfe",
@@ -463,6 +596,7 @@ export default function BuscarClienteScreen() {
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={styles.primaryBtn}
+                    disabled={!!selectedProf}
                     onPress={() =>
                       alert(`Contactando a ${prof.nombre_completo}...`)
                     }
@@ -470,7 +604,7 @@ export default function BuscarClienteScreen() {
                     <Text style={styles.primaryBtnText}>Contactar</Text>
                   </TouchableOpacity>
                 </View>
-              </View>
+              </TouchableOpacity>
             );
           })
         )}
@@ -587,6 +721,111 @@ export default function BuscarClienteScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* --- NUEVO MODAL DE FORMULARIO DE REPORTE --- */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={reportModalVisible}
+        onRequestClose={() => setReportModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>
+                Reportar a {selectedProf?.nombre_completo}
+              </Text>
+              <TouchableOpacity onPress={() => setReportModalVisible(false)}>
+                <Ionicons name="close" size={28} color="#1A3B63" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              style={{ maxHeight: "70%" }}
+            >
+              <Text style={styles.filterLabel}>Selecciona el motivo:</Text>
+              <View
+                style={[
+                  styles.optionsRow,
+                  { flexDirection: "column", gap: 8, alignItems: "stretch" },
+                ]}
+              >
+                {REPORT_REASONS.map((reason) => {
+                  const isOptionSelected = selectedReason === reason;
+                  return (
+                    <TouchableOpacity
+                      key={reason}
+                      style={[
+                        styles.reportOption,
+                        isOptionSelected && styles.reportOptionActive,
+                      ]}
+                      onPress={() => setSelectedReason(reason)}
+                    >
+                      <Ionicons
+                        name={
+                          isOptionSelected
+                            ? "radio-button-on"
+                            : "radio-button-off"
+                        }
+                        size={20}
+                        color={isOptionSelected ? "#1A3B63" : "#6B7280"}
+                      />
+                      <Text
+                        style={[
+                          styles.reportOptionText,
+                          isOptionSelected && styles.reportOptionTextActive,
+                        ]}
+                      >
+                        {reason}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              <Text style={[styles.filterLabel, { marginTop: 20 }]}>
+                Descripción del motivo{" "}
+                {selectedReason === "Otros" && (
+                  <Text style={{ color: "#EF4444" }}>*</Text>
+                )}
+                :
+              </Text>
+              <TextInput
+                style={styles.textArea}
+                placeholder="Explica detalladamente la situación aquí..."
+                placeholderTextColor="#9CA3AF"
+                multiline={true}
+                numberOfLines={4}
+                value={reportDescription}
+                onChangeText={setReportDescription}
+              />
+            </ScrollView>
+
+            <TouchableOpacity
+              style={[styles.applyButton, { backgroundColor: "#EF4444" }]}
+              onPress={handleSendReport}
+              disabled={sendingReport}
+            >
+              {sendingReport ? (
+                <ActivityIndicator size="small" color="white" />
+              ) : (
+                <Text style={[styles.applyButtonText, { color: "white" }]}>
+                  Enviar Reporte
+                </Text>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.clearButton}
+              onPress={() => setReportModalVisible(false)}
+              disabled={sendingReport}
+            >
+              <Text style={styles.clearButtonText}>Cancelar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -606,6 +845,49 @@ const styles = StyleSheet.create({
     paddingHorizontal: 15,
   },
   headerTitle: { color: "white", fontSize: 18, fontWeight: "bold" },
+
+  /* --- ESTILOS ACTION BAR (MODO SELECCIÓN) --- */
+  actionBar: {
+    height: 70,
+    backgroundColor: "#1A3B63",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 15,
+  },
+  actionBarLeft: { flexDirection: "row", alignItems: "center" },
+  actionBarCount: {
+    color: "white",
+    fontSize: 18,
+    fontWeight: "bold",
+    marginLeft: 20,
+  },
+  actionBarRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    position: "relative",
+  },
+  iconBtn: { padding: 8 },
+
+  /* Dropdown flotante */
+  dropdownMenu: {
+    position: "absolute",
+    top: 45,
+    right: 5,
+    backgroundColor: "white",
+    borderRadius: 8,
+    paddingVertical: 8,
+    width: 180,
+    elevation: 5,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    zIndex: 100,
+  },
+  dropdownItem: { paddingHorizontal: 16, paddingVertical: 12 },
+  dropdownText: { color: "#1F2937", fontSize: 15 },
+
   searchSection: {
     flexDirection: "row",
     paddingHorizontal: 20,
@@ -715,6 +997,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#1A3B63",
   },
   emptyPrimaryBtnText: { color: "white", fontWeight: "bold" },
+
+  /* --- ESTILOS DE TARJETAS --- */
   card: {
     backgroundColor: "white",
     borderRadius: 16,
@@ -727,6 +1011,11 @@ const styles = StyleSheet.create({
     shadowRadius: 5,
   },
   cardHighlight: { borderWidth: 2, borderColor: "#FBBF24" },
+  cardSelected: {
+    backgroundColor: "#EBF5FF",
+    borderWidth: 2,
+    borderColor: "#1A3B63",
+  },
   badgeContainer: {
     flexDirection: "row",
     position: "absolute",
@@ -756,6 +1045,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+  avatarSelected: { backgroundColor: "#1A3B63" },
   avatarText: { color: "white", fontWeight: "bold", fontSize: 20 },
   cardInfo: { flex: 1, marginLeft: 15 },
   profName: { fontSize: 18, fontWeight: "bold", color: "#111827" },
@@ -799,6 +1089,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   primaryBtnText: { color: "#1A3B63", fontWeight: "bold", fontSize: 15 },
+
+  /* --- MODALES Y CAMPOS --- */
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0, 0, 0, 0.5)",
@@ -811,10 +1103,6 @@ const styles = StyleSheet.create({
     padding: 25,
     paddingBottom: 40,
     elevation: 5,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 5,
   },
   modalHeader: {
     flexDirection: "row",
@@ -861,4 +1149,29 @@ const styles = StyleSheet.create({
     borderColor: "#1A3B63",
   },
   clearButtonText: { color: "#1A3B63", fontSize: 16, fontWeight: "600" },
+
+  /* --- OPCIONES DE REPORTE --- */
+  reportOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 14,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  reportOptionActive: { borderColor: "#1A3B63", backgroundColor: "#EBF5FF" },
+  reportOptionText: { marginLeft: 12, fontSize: 15, color: "#1F2937" },
+  reportOptionTextActive: { fontWeight: "bold", color: "#1A3B63" },
+  textArea: {
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    borderRadius: 10,
+    padding: 12,
+    minHeight: 90,
+    textAlignVertical: "top",
+    color: "#1F2937",
+    marginTop: 8,
+    marginBottom: 20,
+    fontSize: 15,
+  },
 });

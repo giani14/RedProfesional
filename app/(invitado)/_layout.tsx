@@ -65,20 +65,6 @@ export default function ClienteLayout() {
       />
 
       <Tabs.Screen
-        name="mensajes"
-        options={{
-          title: "Mensajes",
-          tabBarIcon: ({ color, focused }) => (
-            <Ionicons
-              name={focused ? "folder" : "folder-outline"}
-              size={24}
-              color={color}
-            />
-          ),
-        }}
-      />
-
-      <Tabs.Screen
         name="perfil"
         options={{
           title: "Perfil",

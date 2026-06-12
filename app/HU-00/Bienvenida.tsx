@@ -1,13 +1,13 @@
 import { Stack, useRouter } from "expo-router";
 import React from "react";
 import {
-    Dimensions,
-    Image,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Dimensions,
+  Image,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -45,7 +45,7 @@ export default function Bienvenida() {
             resizeMode="contain"
           />
           <Text style={styles.tagline}>
-            Conecta con los mejores expertos de Cochabamba
+            Conecta con los mejores expertos de Bolivia
           </Text>
         </View>
 

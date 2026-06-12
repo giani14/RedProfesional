@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  Modal,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -79,6 +80,7 @@ const MenuOption = ({ icon, label, onPress, isLogout }: MenuOptionProps) => (
 
 export default function ClientePerfil() {
   const [loading, setLoading] = useState(true);
+  const [paymentModalVisible, setPaymentModalVisible] = useState(false);
   const [userData, setUserData] = useState<{
     nombre: string;
     rol: string;
@@ -209,7 +211,11 @@ export default function ClientePerfil() {
             label="Mi perfil"
             onPress={() => router.push("/HU-04/miPerfil")}
           />
-          <MenuOption icon="card-outline" label="Métodos de pago" />
+          <MenuOption
+            icon="card-outline"
+            label="Métodos de pago"
+            onPress={() => setPaymentModalVisible(true)}
+/>
 
           <Text style={styles.sectionTitle}>Soporte</Text>
           <MenuOption icon="help-circle-outline" label="Centro de ayuda" />
@@ -225,7 +231,31 @@ export default function ClientePerfil() {
           />
           <Text style={styles.versionText}>Versión 1.0.4 - RedProfesional</Text>
         </View>
-      </ScrollView>
+            </ScrollView>
+
+      <Modal
+        visible={paymentModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPaymentModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalBox}>
+            <Ionicons name="gift-outline" size={45} color={COLORS.accentGold} />
+            <Text style={styles.modalTitle}>Gratis por ahora</Text>
+            <Text style={styles.modalText}>
+              RedProfesional es gratuita por ahora. No necesitas agregar métodos de pago para usar la aplicación.
+            </Text>
+
+            <TouchableOpacity
+              style={styles.modalButton}
+              onPress={() => setPaymentModalVisible(false)}
+            >
+              <Text style={styles.modalButtonText}>Entendido</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -349,5 +379,44 @@ const styles = StyleSheet.create({
     color: "#9CA3AF",
     fontSize: 12,
     marginTop: 30,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 25,
+  },
+  modalBox: {
+    width: "100%",
+    backgroundColor: COLORS.white,
+    borderRadius: 18,
+    padding: 25,
+    alignItems: "center",
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: COLORS.primaryBlue,
+    marginTop: 10,
+    marginBottom: 8,
+  },
+  modalText: {
+    fontSize: 15,
+    color: COLORS.textGray,
+    textAlign: "center",
+    lineHeight: 22,
+    marginBottom: 20,
+  },
+  modalButton: {
+    backgroundColor: COLORS.accentGold,
+    paddingVertical: 12,
+    paddingHorizontal: 30,
+    borderRadius: 12,
+  },
+  modalButtonText: {
+    color: COLORS.primaryBlue,
+    fontWeight: "bold",
+    fontSize: 15,
   },
 });

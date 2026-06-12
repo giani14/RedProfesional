@@ -6,6 +6,7 @@ import {
   ActivityIndicator,
   Dimensions,
   Image,
+  Modal,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -62,6 +63,7 @@ function QuickAccessCard({
 
 export default function HomeScreen() {
   const [loading, setLoading] = useState(true);
+  const [menuVisible, setMenuVisible] = useState(false);
   const [userData, setUserData] = useState<{
     nombre: string;
     rol: string;
@@ -125,7 +127,7 @@ export default function HomeScreen() {
 
       {/* Header Estilo Imagen */}
       <View style={styles.header}>
-        <TouchableOpacity>
+        <TouchableOpacity onPress={() => setMenuVisible(true)}>
           <Ionicons name="menu" size={30} color={COLORS.white} />
         </TouchableOpacity>
         <Text style={styles.headerLogo}>
@@ -188,7 +190,7 @@ export default function HomeScreen() {
             title="Mis pedidos"
             subtitle="Administra tus solicitudes"
             color={COLORS.cardYellow}
-            onPress={() => router.push("/(cliente)/mensajes")}
+            onPress={() => router.push("/(cliente)/solicitudes")}
           />
           <QuickAccessCard
             icon="search-outline"
@@ -206,6 +208,69 @@ export default function HomeScreen() {
           />
         </View>
       </ScrollView>
+      <Modal
+  visible={menuVisible}
+  transparent
+  animationType="fade"
+  onRequestClose={() => setMenuVisible(false)}
+>
+  <View style={styles.menuOverlay}>
+    <View style={styles.sideMenu}>
+      <Text style={styles.menuTitle}>RedProfesional</Text>
+
+      <TouchableOpacity
+        style={styles.menuItem}
+        onPress={() => {
+          setMenuVisible(false);
+          router.push("/(cliente)/perfil");
+        }}
+      >
+        <Ionicons name="person-outline" size={22} color={COLORS.primaryBlue} />
+        <Text style={styles.menuItemText}>Mi perfil</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={styles.menuItem}
+        onPress={() => {
+          setMenuVisible(false);
+          router.push("/(cliente)/solicitudes");
+        }}
+      >
+        <Ionicons name="briefcase-outline" size={22} color={COLORS.primaryBlue} />
+        <Text style={styles.menuItemText}>Mis pedidos</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={styles.menuItem}
+        onPress={() => {
+          setMenuVisible(false);
+          router.push("/(cliente)/buscar");
+        }}
+      >
+        <Ionicons name="search-outline" size={22} color={COLORS.primaryBlue} />
+        <Text style={styles.menuItemText}>Buscar profesional</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={styles.menuItem}
+        onPress={() => {
+          setMenuVisible(false);
+          router.push("/(cliente)/mensajes");
+        }}
+      >
+        <Ionicons name="chatbubble-outline" size={22} color={COLORS.primaryBlue} />
+        <Text style={styles.menuItemText}>Mensajes</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={styles.closeMenuButton}
+        onPress={() => setMenuVisible(false)}
+      >
+        <Text style={styles.closeMenuText}>Cerrar</Text>
+      </TouchableOpacity>
+    </View>
+  </View>
+</Modal>
     </SafeAreaView>
   );
 }
@@ -315,4 +380,48 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.primaryBlue,
   },
+  menuOverlay: {
+  flex: 1,
+  backgroundColor: "rgba(0,0,0,0.35)",
+  justifyContent: "flex-start",
+  alignItems: "flex-start",
+},
+sideMenu: {
+  width: "75%",
+  height: "100%",
+  backgroundColor: COLORS.white,
+  paddingTop: 60,
+  paddingHorizontal: 22,
+},
+menuTitle: {
+  fontSize: 22,
+  fontWeight: "bold",
+  color: COLORS.primaryBlue,
+  marginBottom: 25,
+},
+menuItem: {
+  flexDirection: "row",
+  alignItems: "center",
+  paddingVertical: 15,
+  borderBottomWidth: 1,
+  borderBottomColor: "#E5E7EB",
+},
+menuItemText: {
+  fontSize: 16,
+  color: COLORS.textDark,
+  marginLeft: 12,
+  fontWeight: "600",
+},
+closeMenuButton: {
+  marginTop: 30,
+  backgroundColor: COLORS.accentGold,
+  paddingVertical: 12,
+  borderRadius: 12,
+  alignItems: "center",
+},
+closeMenuText: {
+  color: COLORS.primaryBlue,
+  fontWeight: "bold",
+  fontSize: 15,
+},
 });

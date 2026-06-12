@@ -131,6 +131,7 @@ export default function ClienteLayout() {
           href: null, // <--- Esto hace que desaparezca de la barra de navegación
         }}
       />
+      
     </Tabs>
   );
 }

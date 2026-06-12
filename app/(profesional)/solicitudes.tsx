@@ -1,11 +1,21 @@
 import { supabase } from "@/lib/supabase";
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, useFocusEffect, useRouter } from "expo-router";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   ActivityIndicator,
+  Animated,
+  Dimensions,
   FlatList,
   Image,
+  Modal,
+  Pressable,
   RefreshControl,
   SafeAreaView,
   ScrollView,
@@ -15,8 +25,12 @@ import {
   View,
 } from "react-native";
 
+const { width } = Dimensions.get("window");
+const DRAWER_WIDTH = width * 0.78;
+
 const COLORS = {
   primaryBlue: "#1A4670",
+  accentGold: "#EAB308",
   white: "#FFFFFF",
   background: "#F8FAFC",
   textDark: "#1E293B",
@@ -97,6 +111,32 @@ const formatearFecha = (fechaStr: string): string => {
   });
 };
 
+interface DrawerItemProps {
+  icon: any;
+  label: string;
+  onPress: () => void;
+  secondary?: boolean;
+}
+
+function DrawerItem({ icon, label, onPress, secondary }: DrawerItemProps) {
+  return (
+    <TouchableOpacity
+      style={styles.drawerItem}
+      onPress={onPress}
+      activeOpacity={0.7}
+    >
+      <Ionicons
+        name={icon}
+        size={secondary ? 20 : 22}
+        color={secondary ? COLORS.textGray : COLORS.primaryBlue}
+      />
+      <Text style={[styles.drawerLabel, secondary && styles.drawerLabelSecondary]}>
+        {label}
+      </Text>
+    </TouchableOpacity>
+  );
+}
+
 function SolicitudCard({
   item,
   onPress,
@@ -162,6 +202,61 @@ export default function SolicitudesProfesional() {
   const [items, setItems] = useState<Solicitud[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [userData, setUserData] = useState<{
+    nombre: string;
+    rol: string;
+    avatar_url?: string;
+  } | null>(null);
+  const [menuVisible, setMenuVisible] = useState(false);
+  const slideAnim = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  const getInitials = (name: string) => {
+    if (!name) return "U";
+    const parts = name.trim().split(/\s+/);
+    if (parts.length >= 2) {
+      return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+    }
+    return parts[0][0].toUpperCase();
+  };
+
+  const openMenu = () => {
+    setMenuVisible(true);
+    Animated.parallel([
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 250,
+        useNativeDriver: true,
+      }),
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 250,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
+
+  const closeMenu = (callback?: () => void) => {
+    Animated.parallel([
+      Animated.timing(slideAnim, {
+        toValue: -DRAWER_WIDTH,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      setMenuVisible(false);
+      callback?.();
+    });
+  };
+
+  const navigateTo = (path: string) => {
+    closeMenu(() => router.push(path as any));
+  };
 
   const solicitudesMostrar = useMemo(() => {
     if (filtroActivo === "Todas") return items;
@@ -200,6 +295,20 @@ export default function SolicitudesProfesional() {
       } = await supabase.auth.getUser();
       if (!user) return;
 
+      // Datos del propio profesional para la cabecera del menú lateral
+      const { data: perfilData } = await supabase
+        .from("perfiles")
+        .select("nombre_completo, rol, avatar_url")
+        .eq("id", user.id)
+        .single();
+      if (perfilData) {
+        setUserData({
+          nombre: perfilData.nombre_completo || "Profesional",
+          rol: perfilData.rol || "Profesional",
+          avatar_url: perfilData.avatar_url,
+        });
+      }
+
       // FILTRO DE SEGURIDAD: Solo solicitudes dirigidas a MI ID como profesional
       const { data, error } = await supabase
         .from("solicitudes_servicio")
@@ -236,11 +345,11 @@ export default function SolicitudesProfesional() {
 
       {/* HEADER AZUL (Igual a tu diseño) */}
       <View style={styles.customHeader}>
-        <TouchableOpacity>
+        <TouchableOpacity onPress={openMenu}>
           <Ionicons name="menu-outline" size={28} color="white" />
         </TouchableOpacity>
         <Text style={styles.headerLogo}>RedProfesional</Text>
-        <TouchableOpacity>
+        <TouchableOpacity onPress={() => router.push("/HU-20" as any)}>
           <Ionicons name="notifications-outline" size={26} color="white" />
           <View style={styles.notifDot} />
         </TouchableOpacity>
@@ -312,6 +421,90 @@ export default function SolicitudesProfesional() {
           />
         )}
       </View>
+
+      {/* Menú lateral deslizable */}
+      <Modal
+        visible={menuVisible}
+        transparent
+        animationType="none"
+        onRequestClose={() => closeMenu()}
+      >
+        <View style={styles.drawerOverlay}>
+          <Animated.View style={[styles.drawerBackdrop, { opacity: fadeAnim }]}>
+            <Pressable style={{ flex: 1 }} onPress={() => closeMenu()} />
+          </Animated.View>
+
+          <Animated.View
+            style={[styles.drawer, { transform: [{ translateX: slideAnim }] }]}
+          >
+            {/* Cabecera con foto, nombre y rol */}
+            <View style={styles.drawerHeader}>
+              {userData?.avatar_url ? (
+                <Image
+                  source={{ uri: userData.avatar_url }}
+                  style={styles.drawerAvatar}
+                />
+              ) : (
+                <View style={[styles.drawerAvatar, styles.drawerInitials]}>
+                  <Text style={styles.drawerInitialsText}>
+                    {getInitials(userData?.nombre || "")}
+                  </Text>
+                </View>
+              )}
+              <Text style={styles.drawerName} numberOfLines={1}>
+                {userData?.nombre}
+              </Text>
+              <View style={styles.drawerRoleBadge}>
+                <Text style={styles.drawerRoleText}>
+                  {userData?.rol?.toUpperCase()}
+                </Text>
+              </View>
+            </View>
+
+            {/* Accesos principales */}
+            <View style={styles.drawerMenu}>
+              <DrawerItem
+                icon="briefcase-outline"
+                label="Proyectos"
+                onPress={() => navigateTo("/(profesional)/proyecto")}
+              />
+              <DrawerItem
+                icon="copy-outline"
+                label="Solicitudes"
+                onPress={() => navigateTo("/(profesional)/solicitudes")}
+              />
+              <DrawerItem
+                icon="chatbubble-outline"
+                label="Mensajes"
+                onPress={() => navigateTo("/(profesional)/mensajes")}
+              />
+              <DrawerItem
+                icon="person-outline"
+                label="Perfil"
+                onPress={() => navigateTo("/(profesional)/perfil")}
+              />
+            </View>
+
+            {/* Accesos secundarios (menos notables) */}
+            <View style={styles.drawerFooter}>
+              <DrawerItem
+                icon="help-circle-outline"
+                label="Centro de ayuda"
+                secondary
+                onPress={() =>
+                  navigateTo("/(profesional)/centro_de_ayuda/centroDeAyuda")
+                }
+              />
+              <DrawerItem
+                icon="shield-checkmark-outline"
+                label="Privacidad"
+                secondary
+                onPress={() => navigateTo("/(profesional)/privacidad/privacidad")}
+              />
+            </View>
+          </Animated.View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -417,5 +610,87 @@ const styles = StyleSheet.create({
     marginTop: 40,
     color: COLORS.textGray,
     fontSize: 14,
+  },
+  drawerOverlay: { flex: 1, flexDirection: "row" },
+  drawerBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.45)",
+  },
+  drawer: {
+    width: DRAWER_WIDTH,
+    height: "100%",
+    backgroundColor: COLORS.white,
+    paddingTop: 50,
+    elevation: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 2, height: 0 },
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+  },
+  drawerHeader: {
+    alignItems: "center",
+    paddingVertical: 25,
+    paddingHorizontal: 20,
+    backgroundColor: COLORS.primaryBlue,
+  },
+  drawerAvatar: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    marginBottom: 12,
+    borderWidth: 2,
+    borderColor: COLORS.white,
+  },
+  drawerInitials: {
+    backgroundColor: "#13345A",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  drawerInitialsText: {
+    color: COLORS.white,
+    fontSize: 32,
+    fontWeight: "bold",
+  },
+  drawerName: {
+    color: COLORS.white,
+    fontSize: 18,
+    fontWeight: "bold",
+    textAlign: "center",
+  },
+  drawerRoleBadge: {
+    backgroundColor: COLORS.accentGold,
+    paddingHorizontal: 12,
+    paddingVertical: 3,
+    borderRadius: 8,
+    marginTop: 8,
+  },
+  drawerRoleText: {
+    color: COLORS.primaryBlue,
+    fontWeight: "bold",
+    fontSize: 11,
+  },
+  drawerMenu: { paddingTop: 10, flex: 1 },
+  drawerItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+  },
+  drawerLabel: {
+    fontSize: 16,
+    color: COLORS.textDark,
+    marginLeft: 18,
+    fontWeight: "600",
+  },
+  drawerLabelSecondary: {
+    fontSize: 14,
+    color: COLORS.textGray,
+    fontWeight: "500",
+  },
+  drawerFooter: {
+    borderTopWidth: 1,
+    borderTopColor: COLORS.borderLight,
+    paddingVertical: 8,
+    paddingBottom: 30,
   },
 });

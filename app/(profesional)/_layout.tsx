@@ -160,6 +160,20 @@ export default function ProfesionalLayout() {
           href: null, // <--- Esto hace que desaparezca de la barra de navegación
         }}
       />
+      {/* Ocultamos la pantalla de Centro de ayuda de la barra inferior */}
+      <Tabs.Screen
+        name="centro_de_ayuda/centroDeAyuda"
+        options={{
+          href: null, // <--- Esto hace que desaparezca de la barra de navegación
+        }}
+      />
+      {/* Ocultamos la pantalla de Privacidad de la barra inferior */}
+      <Tabs.Screen
+        name="privacidad/privacidad"
+        options={{
+          href: null, // <--- Esto hace que desaparezca de la barra de navegación
+        }}
+      />
     </Tabs>
   );
 }

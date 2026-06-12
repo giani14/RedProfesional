@@ -86,6 +86,11 @@ export default function ClientePerfil() {
     biografia?: string; // <--- AÑADE ESTA LÍNEA
     ubicacion?: string;
   } | null>(null);
+  const [dataPro, setDataPro] = useState<any>({
+    pedidos: 0,
+    contratos: 0,
+  });
+  const [userRating, setUserRating] = useState<string>("0");
 
   useEffect(() => {
     fetchUserProfile();
@@ -113,8 +118,34 @@ export default function ClientePerfil() {
           ubicacion: data?.ubicacion || "Cochabamba",
         });
       }
+      if (user) {
+        const { data: dataProfesional, error: errorProfesional } = await supabase
+          .from("solicitudes_servicio")
+          .select("*")
+          .eq("profesional_id", user.id);
+
+        if (errorProfesional) throw errorProfesional;
+        setDataPro({
+          pedidos: dataProfesional?.length || 0,
+          contratos: dataProfesional?.filter((s) => s.estado === "aceptada").length || 0
+        })
+      }
+      if (user) {
+        const { data: dataRating, error: errorRating } = await supabase
+          .from("calificaciones")
+          .select("estrellas")
+          .eq("profesional_id", user.id);
+
+        if (errorRating) throw errorRating;
+        const promedio =
+          dataRating?.reduce((acc, item) => acc + item.estrellas, 0) /
+            dataRating?.length || 0;
+        setUserRating(promedio.toFixed(1));
+      }
+      
+
     } catch (error) {
-      console.error("Error cargando perfil:", error);
+      console.error("Error cargando:", error);
     } finally {
       setLoading(false);
     }
@@ -201,9 +232,9 @@ export default function ClientePerfil() {
         </View>
 
         <View style={styles.statsContainer}>
-          <StatItem value="12" label="Pedidos" />
-          <StatItem value="8" label="Contratos" />
-          <StatItem value="4.9" label="Rating" />
+          <StatItem value={dataPro?.pedidos || "0"} label="Pedidos" />
+          <StatItem value={dataPro?.contratos || "0"} label="Contratos" />
+          <StatItem value={userRating} label="Rating" />
         </View>
 
         <View style={styles.menuContainer}>
@@ -221,8 +252,20 @@ export default function ClientePerfil() {
           {/*<MenuOption icon="card-outline" label="Métodos de pago" />*/}
 
           <Text style={styles.sectionTitle}>Soporte</Text>
-          <MenuOption icon="help-circle-outline" label="Centro de ayuda" />
-          <MenuOption icon="shield-checkmark-outline" label="Privacidad" />
+          <MenuOption
+            icon="help-circle-outline"
+            label="Centro de ayuda"
+            onPress={() =>
+              router.push("/(profesional)/centro_de_ayuda/centroDeAyuda")
+            }
+          />
+          <MenuOption
+            icon="shield-checkmark-outline"
+            label="Privacidad"
+            onPress={() =>
+              router.push("/(profesional)/privacidad/privacidad")
+            }
+          />
 
           <View style={styles.divider} />
 

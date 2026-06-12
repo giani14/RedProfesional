@@ -218,7 +218,7 @@ export default function ClientePerfil() {
             label="Mi perfil profesional"
             onPress={() => router.push("/HU-09/perfilProfe")}
           />
-          <MenuOption icon="card-outline" label="Métodos de pago" />
+          {/*<MenuOption icon="card-outline" label="Métodos de pago" />*/}
 
           <Text style={styles.sectionTitle}>Soporte</Text>
           <MenuOption icon="help-circle-outline" label="Centro de ayuda" />

@@ -41,7 +41,7 @@ export default function MiPerfil() {
       const { data: infoProfesional } = await supabase
         .from("profesionales_info")
         .select("*")
-        .eq("profesional_id", user.id)
+        .eq("id", user.id)
         .single();
 
       if (perfilData) {
@@ -135,7 +135,7 @@ export default function MiPerfil() {
               <View style={{ flex: 1 }}>
                 <Text style={styles.labelDetalle}>Experiencia</Text>
                 <Text style={styles.valorDetalle}>
-                  {perfil?.experiencia || "No especificada"} años
+                  {perfil?.experiencia || "No especificada años"}
                 </Text>
               </View>
             </View>

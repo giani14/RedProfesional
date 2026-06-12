@@ -3,14 +3,14 @@ import { Ionicons } from "@expo/vector-icons";
 import { router, Stack } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    Image,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Image,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 const COLORS = {
@@ -76,6 +76,8 @@ const PortfolioCard = ({
 export default function PerfilProfesional() {
   const [loading, setLoading] = useState(true);
   const [userData, setUserData] = useState<any>(null);
+  const [userPortafolio, setUserPortfolio] = useState<any>(null);
+  const [userPromedio, setUserPromedio] = useState<any>(0);
 
   useEffect(() => {
     fetchUserProfile();
@@ -84,9 +86,7 @@ export default function PerfilProfesional() {
   const fetchUserProfile = async () => {
     try {
       setLoading(true);
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         const { data, error } = await supabase
           .from("perfiles")
@@ -97,6 +97,36 @@ export default function PerfilProfesional() {
         if (error) throw error;
         setUserData(data);
       }
+
+      if (user) {
+        const {data: infoProfesional, error: infoError } = await supabase
+          .from("portafolios")
+          .select("*")
+          .eq("id", user.id)
+          .single();
+
+        if (infoError) throw infoError;
+        setUserPortfolio(infoProfesional);
+      }
+
+      if (user) {
+        const { data: calificacion, error: calificacionError } = await supabase
+          .from("calificaciones")
+          .select("*")
+          .eq("profesional_id", user.id)
+          .single();
+
+        if (calificacionError) throw calificacionError;
+
+        const calcularPromedio = (arr: number[]): number => {
+          if (arr.length === 0) return 0; 
+          const suma = arr.reduce((acumulador, valorActual) => acumulador + valorActual, 0);
+          return suma / arr.length;
+        };
+
+        setUserPromedio(calcularPromedio(calificacion?.estrellas));
+      }
+
     } catch (error) {
       console.error(error);
     } finally {
@@ -191,9 +221,9 @@ export default function PerfilProfesional() {
 
           {/* ESTADÍSTICAS */}
           <View style={styles.statsContainer}>
-            <StatItem icon="medal-outline" label="Calificación" value="4.8" />
+            <StatItem icon="medal-outline" label="Calificación" value={userPromedio} />
             <View style={styles.dividerVertical} />
-            <StatItem icon="briefcase-outline" label="Proyectos" value="18" />
+            <StatItem icon="briefcase-outline" label="Proyectos" value={userPortafolio?.length || 0} />
             <View style={styles.dividerVertical} />
             <StatItem
               icon="shield-checkmark-outline"
@@ -224,7 +254,7 @@ export default function PerfilProfesional() {
           </View>
 
           <View style={styles.portfolioActionRow}>
-            <Text style={styles.countText}>3 trabajos publicados</Text>
+            <Text style={styles.countText}> {userPortafolio?.length || 0} trabajos publicados</Text>
             <TouchableOpacity
               style={styles.addWorkBtn}
               onPress={() => router.push("/HU-09/subirPortafolio")}
@@ -234,7 +264,7 @@ export default function PerfilProfesional() {
           </View>
 
           <View style={styles.portfolioGrid}>
-            <PortfolioCard
+            {/*<PortfolioCard
               title="Instalación Residencial"
               files="2 archivos"
               image="https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=400"
@@ -243,7 +273,16 @@ export default function PerfilProfesional() {
               title="Iluminación Comercial"
               files="1 archivo"
               image="https://images.unsplash.com/photo-1558403194-611308249627?w=400"
-            />
+            />*/}
+            {
+              userPortafolio?.map((item: any, index: number) => (
+                <PortfolioCard
+                  key={index}
+                  title={item.titulo || "Proyecto sin título"}
+                  files={`${item.archivos?.length || 0} archivos`}
+                  image={item.portada_url}
+                />
+              ))}
           </View>
 
           {/* BOTONES DE ACCIÓN ADICIONALES */}

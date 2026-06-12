@@ -17,10 +17,10 @@ import {
 } from "react-native";
 
 const COLORS = {
-  primaryBlue: "#1A4670", // Identidad RedProfesional
-  accentGold: "#EAB308", // Detalles de acento y checks de leído
+  primaryBlue: "#1A4670",
+  accentGold: "#EAB308",
   white: "#FFFFFF",
-  background: "#F4F6F9", // Fondo limpio para el chat
+  background: "#F4F6F9",
   chatTextDark: "#1F2937",
   chatTextLight: "#FFFFFF",
   bubbleLeft: "#FFFFFF",
@@ -47,11 +47,11 @@ export default function ChatScreen() {
   const [loading, setLoading] = useState(true);
 
   const flatListRef = useRef<FlatList>(null);
+  const miUsuarioIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     inicializarChat();
 
-    // SUSCRIPCIÓN EN TIEMPO REAL (Estilo WhatsApp)
     const channel = supabase
       .channel(`chat:${chat_id}`)
       .on(
@@ -64,12 +64,30 @@ export default function ChatScreen() {
         },
         (payload) => {
           const nuevoMsg = payload.new as Mensaje;
-          setMensajes((prev) => [nuevoMsg, ...prev]);
 
-          // Si el mensaje es del otro, marcarlo como leído inmediatamente
-          if (nuevoMsg.emisor_id !== miUsuarioId) {
+          setMensajes((prev) => {
+            if (prev.some((m) => m.id === nuevoMsg.id)) return prev;
+            return [nuevoMsg, ...prev];
+          });
+
+          if (nuevoMsg.emisor_id !== miUsuarioIdRef.current) {
             marcarComoLeido(nuevoMsg.id);
           }
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "mensajes",
+          filter: `chat_id=eq.${chat_id}`,
+        },
+        (payload) => {
+          const msgActualizado = payload.new as Mensaje;
+          setMensajes((prev) =>
+            prev.map((m) => (m.id === msgActualizado.id ? msgActualizado : m)),
+          );
         },
       )
       .subscribe();
@@ -77,38 +95,30 @@ export default function ChatScreen() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [chat_id, miUsuarioId]);
+  }, [chat_id]);
 
   async function inicializarChat() {
     try {
-      // 1. Obtener mi usuario actual de forma estricta
       const {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) return;
-      setMiUsuarioId(user.id);
 
-      // 2. Traer info del chat y determinar los nombres (Evita confusiones Cliente/Profesional)
+      setMiUsuarioId(user.id);
+      miUsuarioIdRef.current = user.id;
+
       const { data: chatData, error: chatError } = (await supabase
         .from("chats")
         .select(
           `
-    cliente_id,
-    profesional_id,
-    cliente:cliente_id(nombre_completo),
-    profesional:profesional_id(nombre_completo)
-  `,
+          cliente_id,
+          profesional_id,
+          cliente:cliente_id(nombre_completo),
+          profesional:profesional_id(nombre_completo)
+        `,
         )
         .eq("id", chat_id)
-        .single()) as {
-        data: {
-          cliente_id: string;
-          profesional_id: string;
-          cliente: { nombre_completo: string } | null;
-          profesional: { nombre_completo: string } | null;
-        } | null;
-        error: any;
-      };
+        .single()) as any;
 
       if (!chatError && chatData) {
         const esCliente = chatData.cliente_id === user.id;
@@ -118,7 +128,6 @@ export default function ChatScreen() {
         setNombreDestinatario(nombre || "Usuario RedProfesional");
       }
 
-      // 3. Cargar el histórico de mensajes (Ordenados del más nuevo al más viejo para la optimización de FlatList invertida)
       const { data: mensajesData, error: msgsError } = await supabase
         .from("mensajes")
         .select("*")
@@ -128,12 +137,11 @@ export default function ChatScreen() {
       if (!msgsError && mensajesData) {
         setMensajes(mensajesData);
 
-        // Marcar mensajes no leídos como leídos al entrar
         const noLeidos = mensajesData.filter(
           (m) => m.emisor_id !== user.id && !m.leido,
         );
-        for (const msg of noLeidos) {
-          marcarComoLeido(msg.id);
+        if (noLeidos.length > 0) {
+          await Promise.all(noLeidos.map((msg) => marcarComoLeido(msg.id)));
         }
       }
     } catch (err) {
@@ -151,21 +159,46 @@ export default function ChatScreen() {
     if (!nuevoMensaje.trim() || !miUsuarioId) return;
 
     const textoAEnviar = nuevoMensaje.trim();
-    setNuevoMensaje(""); // Limpieza inmediata del input (Optimización UX de WhatsApp)
+    setNuevoMensaje("");
+
+    const idTemporal = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const mensajeOptimista: Mensaje = {
+      id: idTemporal,
+      texto: textoAEnviar,
+      created_at: new Date().toISOString(),
+      emisor_id: miUsuarioId,
+      leido: false,
+    };
+
+    setMensajes((prev) => [mensajeOptimista, ...prev]);
 
     try {
-      const { error } = await supabase.from("mensajes").insert([
-        {
-          chat_id: chat_id,
-          emisor_id: miUsuarioId,
-          texto: textoAEnviar,
-          leido: false,
-        },
-      ]);
+      const { data, error } = await supabase
+        .from("mensajes")
+        .insert([
+          {
+            chat_id: chat_id,
+            emisor_id: miUsuarioId,
+            texto: textoAEnviar,
+            leido: false,
+          },
+        ])
+        .select()
+        .single();
 
       if (error) throw error;
+
+      const mensajeReal = data as Mensaje;
+
+      setMensajes((prev) => {
+        if (prev.some((m) => m.id === mensajeReal.id)) {
+          return prev.filter((m) => m.id !== idTemporal);
+        }
+        return prev.map((m) => (m.id === idTemporal ? mensajeReal : m));
+      });
     } catch (err) {
       console.error("Error al enviar mensaje:", err);
+      setMensajes((prev) => prev.filter((m) => m.id !== idTemporal));
     }
   }
 
@@ -175,10 +208,14 @@ export default function ChatScreen() {
     return fecha.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   };
 
+  // Cálculo del offset vertical para evitar solapamientos con cabeceras de navegación
+  const keyboardVerticalOffset = Platform.OS === "ios" ? 90 : 0;
+
   return (
     <SafeAreaView style={styles.container}>
-      {/* HEADER PREMIUM AL ESTILO REDPROFESIONAL */}
       <Stack.Screen options={{ headerShown: false }} />
+
+      {/* HEADER */}
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
@@ -205,10 +242,12 @@ export default function ChatScreen() {
         </View>
       </View>
 
-      {/* CUERPO DEL CHAT CON ENFOQUE EN OPTIMIZACIÓN (INVERTIDO) */}
+      {/* COMPONENTE CORRECTOR DEL TECLADO PARA ANDROID E IOS */}
       <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        style={styles.keyboardContainer}
+        // Cambiamos a padding o height dependiendo de la respuesta de tu emulador/dispositivo
+        behavior={Platform.OS === "ios" ? "padding" : "padding"}
+        keyboardVerticalOffset={keyboardVerticalOffset}
       >
         {loading ? (
           <View style={styles.center}>
@@ -218,11 +257,12 @@ export default function ChatScreen() {
           <FlatList
             ref={flatListRef}
             data={mensajes}
-            keyExtractor={(item) => item.id}
-            inverted // WhatsApp usa listas invertidas para que el scroll empiece abajo de forma nativa
+            keyExtractor={(item, index) => `${item.id}-${index}`}
+            inverted
             contentContainerStyle={styles.chatContent}
+            showsVerticalScrollIndicator={false}
             renderItem={({ item }) => {
-              const esMio = item.emisor_id === miUsuarioId; // COMPROBACIÓN ESTRICTA DE ESPEJO
+              const esMio = item.emisor_id === miUsuarioId;
               return (
                 <View
                   style={[
@@ -244,8 +284,6 @@ export default function ChatScreen() {
                     >
                       {item.texto}
                     </Text>
-
-                    {/* HORA INCORPORADA AL MISMO GLOBO (Estilo WhatsApp) */}
                     <View style={styles.metaContainer}>
                       <Text
                         style={[
@@ -273,7 +311,7 @@ export default function ChatScreen() {
           />
         )}
 
-        {/* INPUT DE MENSAJE FLOTANTE ESTILO WHATSAPP */}
+        {/* INPUT DE TEXTO FIJADO AL BORDE INFERIOR */}
         <View style={styles.inputContainer}>
           <View style={styles.textInputWrapper}>
             <TouchableOpacity style={styles.iconButton}>
@@ -323,20 +361,17 @@ export default function ChatScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
+  keyboardContainer: { flex: 1 }, // Asegura el comportamiento expansivo interno
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
   header: {
     paddingTop:
-      Platform.OS === "android" ? (RNStatusBar.currentHeight || 0) + 12 : 35,
+      Platform.OS === "android" ? (RNStatusBar.currentHeight || 0) + 12 : 12,
     paddingBottom: 12,
     backgroundColor: COLORS.primaryBlue,
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 10,
     elevation: 4,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 3,
   },
   backButton: { padding: 5 },
   avatarCircle: {
@@ -380,14 +415,8 @@ const styles = StyleSheet.create({
     shadowRadius: 1,
     elevation: 1,
   },
-  bubbleLeft: {
-    backgroundColor: COLORS.bubbleLeft,
-    borderTopLeftRadius: 2,
-  },
-  bubbleRight: {
-    backgroundColor: COLORS.bubbleRight,
-    borderTopRightRadius: 2,
-  },
+  bubbleLeft: { backgroundColor: COLORS.bubbleLeft, borderTopLeftRadius: 2 },
+  bubbleRight: { backgroundColor: COLORS.bubbleRight, borderTopRightRadius: 2 },
   messageText: { fontSize: 15, lineHeight: 20 },
   textDark: { color: COLORS.chatTextDark },
   textLight: { color: COLORS.chatTextLight },
@@ -397,7 +426,7 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
     marginTop: 2,
     alignSelf: "flex-end",
-    marginLeft: 25, // Garantiza espacio para que la hora no se empaste con textos cortos
+    marginLeft: 25,
   },
   timeText: { fontSize: 10 },
   timeDark: { color: COLORS.textGray },
@@ -405,9 +434,9 @@ const styles = StyleSheet.create({
   inputContainer: {
     flexDirection: "row",
     paddingHorizontal: 8,
-    paddingVertical: 10,
+    paddingVertical: 8,
     alignItems: "center",
-    backgroundColor: "transparent",
+    backgroundColor: COLORS.white, // Mantiene la consistencia del color de fondo al subir
   },
   textInputWrapper: {
     flex: 1,
@@ -418,11 +447,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     minHeight: 48,
     maxHeight: 100,
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
   },
   input: {
     flex: 1,
@@ -441,10 +465,5 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginLeft: 6,
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
   },
 });

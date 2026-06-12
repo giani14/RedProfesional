@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabase"; // Asegúrate de tener este import
+import { supabase } from "@/lib/supabase";
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import React from "react";
@@ -20,7 +20,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const COLORS = {
   primaryBlue: "#123F78",
   accentGold: "#EAB308",
-  textMain: "#123F78", // Azul oscuro para títulos según imagen
+  textMain: "#123F78",
   textBody: "#1F2937",
   textSecondary: "#6B7280",
   bgLight: "#F9FAFB",
@@ -28,9 +28,34 @@ const COLORS = {
   cardBorder: "#E5E7EB",
 };
 
+// Helper para obtener iniciales si no hay avatar_url
+const obtenerIniciales = (nombre: string) => {
+  if (!nombre) return "??";
+  const partes = nombre.trim().split(/\s+/);
+  if (partes.length >= 2) {
+    return `${partes[0][0]}${partes[1][0]}`.toUpperCase();
+  }
+  return partes[0].substring(0, 2).toUpperCase();
+};
+
+// Helper para transformar el ISO string de vuelta a un formato legible en la UI (DD/MM/AAAA)
+const formatearFechaLegible = (isoString: string) => {
+  if (!isoString) return "A convenir";
+  try {
+    const d = new Date(isoString);
+    const dia = String(d.getDate()).padStart(2, "0");
+    const mes = String(d.getMonth() + 1).padStart(2, "0");
+    const anio = d.getFullYear();
+    return `${dia}/${mes}/${anio}`;
+  } catch {
+    return "A convenir";
+  }
+};
+
 export default function RevisarSolicitud() {
   const [isSending, setIsSending] = React.useState(false);
   const router = useRouter();
+
   // Recibimos los datos enviados desde el formulario anterior
   const {
     id,
@@ -41,7 +66,7 @@ export default function RevisarSolicitud() {
     servicio,
     descripcion,
     presupuesto,
-    fecha,
+    fecha, // Viene como ISO string (ej: "2026-06-15T00:00:00.000Z") o vacío
   } = useLocalSearchParams();
 
   const handleSendRequest = async () => {
@@ -58,6 +83,12 @@ export default function RevisarSolicitud() {
         return;
       }
 
+      // Preparar el presupuesto para evitar fallos de tipos en Postgres
+      const budgetValue =
+        presupuesto && (presupuesto as string).trim() !== ""
+          ? parseFloat(presupuesto as string)
+          : null;
+
       // 2. Registrar en la tabla 'solicitudes_servicio'
       const { error: insertError } = await supabase
         .from("solicitudes_servicio")
@@ -65,20 +96,24 @@ export default function RevisarSolicitud() {
           {
             cliente_id: user.id,
             proyecto: servicio,
-            descripcion: descripcion, // Asegúrate que sea 'descripcion' según tu imagen de la BD
+            descripcion: descripcion,
             estado: "pendiente",
-            profesional_id: id, // <--- ¡ESTA ES LA LÍNEA QUE FALTABA!
-            presupuesto: presupuesto, // <--- Añades esta línea
+            profesional_id: id,
+            presupuesto: budgetValue,
+            fecha_estimada: fecha ? (fecha as string) : null, // <-- ¡AHORA SÍ SE GUARDA LA FECHA EN LA BD!
           },
         ]);
 
       if (insertError) throw insertError;
 
-      console.log("Solicitud registrada con el profesional:", id);
+      console.log("Solicitud registrada con éxito para el profesional:", id);
       router.push("/HU-15/solicitudEnviada");
     } catch (err) {
       console.error("Error al registrar solicitud:", err);
-      Alert.alert("Error", "No pudimos registrar tu solicitud.");
+      Alert.alert(
+        "Error",
+        "No pudimos procesar el registro en la base de datos.",
+      );
     } finally {
       setIsSending(false);
     }
@@ -109,19 +144,23 @@ export default function RevisarSolicitud() {
       >
         <Text style={styles.mainTitle}>Revisar solicitud</Text>
 
-        {/* SECCIÓN PROFESIONAL */}
+        {/* SECCIÓN PROFESIONAL CORREGIDA CON AVATAR / INICIALES */}
         <Text style={styles.sectionLabel}>Profesional</Text>
         <View style={styles.profeCard}>
-          <Image
-            source={{
-              uri: (avatar as string) || "https://via.placeholder.com/150",
-            }}
-            style={styles.avatar}
-          />
+          {avatar ? (
+            <Image source={{ uri: avatar as string }} style={styles.avatar} />
+          ) : (
+            <View style={styles.avatarIniciales}>
+              <Text style={styles.textoIniciales}>
+                {obtenerIniciales(nombre as string)}
+              </Text>
+            </View>
+          )}
+
           <View style={styles.profeInfo}>
-            <Text style={styles.profeName}>{nombre || "Carlos Mendoza"}</Text>
+            <Text style={styles.profeName}>{nombre || "Profesional"}</Text>
             <Text style={styles.profeTitle}>
-              {especialidad || "Desarrollador Web"}
+              {especialidad || "Especialista General"}
             </Text>
             <View style={styles.row}>
               <Ionicons name="location" size={14} color={COLORS.primaryBlue} />
@@ -130,7 +169,7 @@ export default function RevisarSolicitud() {
             <View style={styles.row}>
               <Ionicons name="star" size={14} color={COLORS.accentGold} />
               <Text style={styles.ratingText}>
-                4.8 <Text style={styles.reviewCount}>(32)</Text>
+                5.0 <Text style={styles.reviewCount}>(Nuevo)</Text>
               </Text>
             </View>
           </View>
@@ -142,27 +181,29 @@ export default function RevisarSolicitud() {
         <View style={styles.detailGroup}>
           <Text style={styles.detailLabel}>Servicio solicitado</Text>
           <Text style={styles.detailValue}>
-            {servicio || "Desarrollo de página web"}
+            {servicio || "No especificado"}
           </Text>
         </View>
 
         <View style={styles.detailGroup}>
           <Text style={styles.detailLabel}>Descripción</Text>
           <Text style={styles.detailValue}>
-            {descripcion || "No se proporcionó una descripción."}
+            {descripcion || "Sin descripción adicional."}
           </Text>
         </View>
 
         <View style={styles.detailGroup}>
           <Text style={styles.detailLabel}>Presupuesto estimado</Text>
           <Text style={styles.detailValue}>
-            Bs. {presupuesto || "No definido"}
+            {presupuesto ? `Bs. ${presupuesto}` : "No definido"}
           </Text>
         </View>
 
         <View style={styles.detailGroup}>
           <Text style={styles.detailLabel}>Fecha estimada</Text>
-          <Text style={styles.detailValue}>{fecha || "A convenir"}</Text>
+          <Text style={styles.detailValue}>
+            {formatearFechaLegible(fecha as string)}
+          </Text>
         </View>
 
         {/* BOTONES DE ACCIÓN */}
@@ -209,7 +250,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   headerTitle: { color: "white", fontSize: 18, fontWeight: "bold" },
-
   scrollContent: { paddingHorizontal: 20, paddingBottom: 40 },
   mainTitle: {
     fontSize: 22,
@@ -224,7 +264,6 @@ const styles = StyleSheet.create({
     color: COLORS.textMain,
     marginBottom: 12,
   },
-
   // Tarjeta Profesional
   profeCard: {
     flexDirection: "row",
@@ -237,6 +276,15 @@ const styles = StyleSheet.create({
     marginBottom: 30,
   },
   avatar: { width: 85, height: 85, borderRadius: 42.5 },
+  avatarIniciales: {
+    width: 85,
+    height: 85,
+    borderRadius: 42.5,
+    backgroundColor: COLORS.primaryBlue,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  textoIniciales: { color: "#FFFFFF", fontSize: 28, fontWeight: "bold" },
   profeInfo: { marginLeft: 15, flex: 1 },
   profeName: { fontSize: 18, fontWeight: "bold", color: COLORS.textMain },
   profeTitle: { fontSize: 14, color: COLORS.textSecondary, marginVertical: 2 },
@@ -244,7 +292,6 @@ const styles = StyleSheet.create({
   locText: { fontSize: 13, color: COLORS.textSecondary },
   ratingText: { fontSize: 13, fontWeight: "bold", color: COLORS.textBody },
   reviewCount: { fontWeight: "normal", color: COLORS.textSecondary },
-
   // Detalles de Solicitud
   detailGroup: { marginBottom: 22 },
   detailLabel: {
@@ -254,7 +301,6 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   detailValue: { fontSize: 16, color: COLORS.textBody, lineHeight: 24 },
-
   // Acciones
   actionContainer: { marginTop: 15, gap: 12 },
   btnSend: {
@@ -267,7 +313,6 @@ const styles = StyleSheet.create({
   },
   btnSendText: { color: "white", fontSize: 16, fontWeight: "bold" },
   sendIcon: { marginLeft: 8, transform: [{ rotate: "-45deg" }] },
-
   btnEdit: {
     backgroundColor: COLORS.white,
     borderWidth: 1.5,

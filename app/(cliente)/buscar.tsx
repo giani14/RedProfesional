@@ -26,9 +26,9 @@ interface Profesional {
   calificacion: number;
   resenas: number;
   descripcion: string;
+  experiencia_anios: string;
 }
 
-// Opciones predefinidas para el reporte alineadas con la base de datos
 const REPORT_REASONS = [
   "Comportamiento inadecuado o spam",
   "Lenguaje ofensivo o acoso",
@@ -88,53 +88,81 @@ export default function BuscarClienteScreen() {
         setActiveSearchTerm(cleanTerm);
         const lowerTerm = cleanTerm.toLowerCase();
 
-        const { data, error } = await supabase
-          .from("perfiles")
-          .select("*")
-          .eq("rol", "Profesional")
-          .eq("estado", "activo");
+        // 1. CORREGIDO: Campos cambiados a 'promedio' y 'total_reviews' según la vista de la BD
+        const { data, error } = await supabase.from("profesionales_info")
+          .select(`
+            profesional_id,
+            titulo_especialidad,
+            descripcion,
+            experiencia,
+            estado_verificacion,
+            perfiles!profesionales_info_profesional_id_fkey (
+              nombre_completo,
+              avatar_url,
+              ciudad,
+              ubicacion,
+              estado
+            ),
+            profesional_categorias (
+              categorias (
+                nombre
+              )
+            ),
+            profesionales_rating (
+              promedio,
+              total_reviews
+            )
+          `);
 
         if (error) throw error;
 
-        const defaultSpecialties = [
-          "Electricista",
-          "Plomería",
-          "Mantenimiento",
-          "Carpintería",
-        ];
+        let mappedData: Profesional[] = (data || [])
+          .filter((item: any) => item.perfiles?.estado === "activo")
+          .map((item: any) => {
+            const perfil = item.perfiles || {};
+            const ratingInfo = item.profesionales_rating?.[0] || {};
 
-        let mappedData: Profesional[] = (data || []).map((item, index) => {
-          const especialidadReal =
-            item.especialidad ||
-            item.profesion ||
-            item.categoria ||
-            item.oficio;
-          const mockedSpecialty =
-            defaultSpecialties[index % defaultSpecialties.length];
-          return {
-            id: item.id,
-            nombre_completo: item.nombre_completo || "Usuario",
-            avatar_url: item.avatar_url,
-            especialidad: especialidadReal || mockedSpecialty,
-            ubicacion: item.ubicacion || "Ubicación no especificada",
-            calificacion: item.calificacion ?? 4.8,
-            resenas: item.resenas ?? 24,
-            descripcion:
-              item.descripcion ||
-              "Profesional verificado en la plataforma, disponible para nuevos proyectos.",
-          };
-        });
+            // Mapeamos las categorías relacionales de la BD
+            const listaCategorias =
+              item.profesional_categorias
+                ?.map((pc: any) => pc.categorias?.nombre)
+                .filter(Boolean) || [];
 
+            // 2. SOLUCIÓN INTEGRADA: Prioriza las categorías organizadas, pero si está vacío,
+            // usa el 'titulo_especialidad' de texto plano como fallback inteligente
+            const especialidadesUnidas =
+              listaCategorias.length > 0
+                ? listaCategorias.join(", ")
+                : item.titulo_especialidad || "Especialista General";
+
+            const expAnios = item.experiencia
+              ? String(item.experiencia).replace(/[^0-9]/g, "")
+              : "0";
+
+            return {
+              id: item.profesional_id,
+              nombre_completo:
+                perfil.nombre_completo || "Profesional de Confianza",
+              avatar_url: perfil.avatar_url,
+              especialidad: especialidadesUnidas,
+              ubicacion: perfil.ciudad || perfil.ubicacion || "Cochabamba",
+              // Ajustados también aquí los accesos a las propiedades
+              calificacion: ratingInfo.promedio ?? 5.0,
+              resenas: ratingInfo.total_reviews ?? 0,
+              descripcion:
+                item.descripcion ||
+                "Profesional verificado en la plataforma, disponible para nuevos proyectos.",
+              experiencia_anios: expAnios,
+            };
+          });
+
+        // --- SISTEMA DE FILTRADO DINÁMICO ---
         if (cleanTerm !== "") {
           mappedData = mappedData.filter((p) => {
-            const wordsName = p.nombre_completo.toLowerCase().split(/\s+/);
-            const wordsSpec = p.especialidad.toLowerCase().split(/\s+/);
-            const matchName = wordsName.some((word) =>
-              word.startsWith(lowerTerm),
-            );
-            const matchSpec = wordsSpec.some((word) =>
-              word.startsWith(lowerTerm),
-            );
+            const matchName = p.nombre_completo
+              .toLowerCase()
+              .includes(lowerTerm);
+            const matchSpec = p.especialidad.toLowerCase().includes(lowerTerm);
             return matchName || matchSpec;
           });
         }
@@ -149,6 +177,7 @@ export default function BuscarClienteScreen() {
           mappedData = mappedData.filter((p) => p.calificacion >= cal);
         }
 
+        // --- ORDENAMIENTO POR RELEVANCIA Y CALIFICACIÓN ---
         mappedData.sort((a, b) => {
           if (b.calificacion !== a.calificacion)
             return b.calificacion - a.calificacion;
@@ -158,8 +187,9 @@ export default function BuscarClienteScreen() {
 
         setResultados(mappedData);
       } catch (error) {
-        console.error("Error buscando resultados:", error);
+        console.error("Error buscando resultados reales:", error);
       } finally {
+        // 3. CORREGIDO: Se cambió 'file' por 'finally'
         setLoading(false);
       }
     },
@@ -173,7 +203,6 @@ export default function BuscarClienteScreen() {
     return () => clearTimeout(timer as any);
   }, [busqueda, fetchResultados, filtroUbicacion, filtroCalificacion]);
 
-  // --- CONTROL DE PRESIONADO DE TARJETAS ---
   const handleProfPress = (prof: Profesional) => {
     if (selectedProf) {
       if (selectedProf.id === prof.id) {
@@ -183,7 +212,6 @@ export default function BuscarClienteScreen() {
       }
       setShowMenuDropdown(false);
     } else {
-      // Navegación por defecto si no está en modo selección
       router.push({
         pathname: "/HU-13/verPerfilProfe",
         params: { id: prof.id },
@@ -201,7 +229,6 @@ export default function BuscarClienteScreen() {
     setShowMenuDropdown(false);
   };
 
-  // --- ENVIAR REPORTE DESDE EL MODAL ---
   const handleSendReport = async () => {
     if (!selectedReason) {
       Alert.alert("Error", "Por favor, selecciona un motivo para el reporte.");
@@ -218,7 +245,6 @@ export default function BuscarClienteScreen() {
         data: { user },
       } = await supabase.auth.getUser();
 
-      // Buscamos si existe un chat activo previo con este profesional (puede ser nulo si no han hablado)
       const { data: chatData } = await supabase
         .from("chats")
         .select("id")
@@ -228,7 +254,7 @@ export default function BuscarClienteScreen() {
 
       const { error } = await supabase.from("reportes").insert([
         {
-          chat_id: chatData?.id || null, // Si no hay chat, se guarda como null
+          chat_id: chatData?.id || null,
           denunciante_id: user?.id,
           denunciado_id: selectedProf?.id,
           motivo: selectedReason,
@@ -559,9 +585,14 @@ export default function BuscarClienteScreen() {
                     </Text>
                     <View style={styles.ratingRow}>
                       <Ionicons name="star" size={14} color="#F9B934" />
-                      <Text style={styles.ratingText}>{prof.calificacion}</Text>
+                      <Text style={styles.ratingText}>
+                        {prof.calificacion === 5
+                          ? "0.0"
+                          : prof.calificacion.toFixed(1)}
+                      </Text>
                       <Text style={styles.reviewsText}>
-                        ({prof.resenas} reseñas)
+                        ({prof.resenas}{" "}
+                        {prof.resenas === 1 ? "reseña" : "reseñas"})
                       </Text>
                     </View>
                     <View style={styles.locationRow}>
@@ -722,7 +753,7 @@ export default function BuscarClienteScreen() {
         </View>
       </Modal>
 
-      {/* --- NUEVO MODAL DE FORMULARIO DE REPORTE --- */}
+      {/* --- MODAL DE FORMULARIO DE REPORTE --- */}
       <Modal
         animationType="slide"
         transparent={true}
@@ -830,6 +861,7 @@ export default function BuscarClienteScreen() {
   );
 }
 
+// Estilos faltantes para asegurar la compilación limpia
 const styles = StyleSheet.create({
   mainContainer: { flex: 1, backgroundColor: "#F3F4F6" },
   safeAreaSpacing: {
@@ -845,8 +877,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 15,
   },
   headerTitle: { color: "white", fontSize: 18, fontWeight: "bold" },
-
-  /* --- ESTILOS ACTION BAR (MODO SELECCIÓN) --- */
   actionBar: {
     height: 70,
     backgroundColor: "#1A3B63",
@@ -868,8 +898,6 @@ const styles = StyleSheet.create({
     position: "relative",
   },
   iconBtn: { padding: 8 },
-
-  /* Dropdown flotante */
   dropdownMenu: {
     position: "absolute",
     top: 45,
@@ -887,7 +915,6 @@ const styles = StyleSheet.create({
   },
   dropdownItem: { paddingHorizontal: 16, paddingVertical: 12 },
   dropdownText: { color: "#1F2937", fontSize: 15 },
-
   searchSection: {
     flexDirection: "row",
     paddingHorizontal: 20,
@@ -906,272 +933,231 @@ const styles = StyleSheet.create({
     borderColor: "#E5E7EB",
     marginRight: 5,
   },
-  searchInput: { flex: 1, color: "#1F2937", marginLeft: 10, fontSize: 16 },
+  searchInput: { flex: 1, color: "#1F2937", marginLeft: 8, fontSize: 16 },
   searchBtn: {
     backgroundColor: "#1A3B63",
+    borderRadius: 12,
     width: 55,
     height: 55,
-    borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
+    marginRight: 5,
   },
   filterBtn: {
-    backgroundColor: "white",
+    backgroundColor: "#E5E7EB",
+    borderRadius: 12,
     width: 55,
     height: 55,
-    borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
-    marginLeft: 5,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
   },
   activeFiltersContainer: {
     flexDirection: "row",
     paddingHorizontal: 20,
-    marginTop: 15,
-    maxHeight: 35,
+    marginTop: 10,
   },
   activeFilterChip: {
     flexDirection: "row",
     backgroundColor: "#1A3B63",
+    borderRadius: 20,
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 15,
-    marginRight: 10,
     alignItems: "center",
+    marginRight: 8,
   },
   activeFilterChipText: { color: "white", fontSize: 13, fontWeight: "600" },
-  clearFiltersTextBtn: { justifyContent: "center", paddingHorizontal: 5 },
-  clearFiltersText: { color: "#EF4444", fontSize: 13, fontWeight: "bold" },
-  chipsContainer: {
-    paddingHorizontal: 20,
-    flexDirection: "row",
-    maxHeight: 45,
-    marginBottom: 5,
-  },
+  clearFiltersTextBtn: { justifyContent: "center", paddingLeft: 4 },
+  clearFiltersText: { color: "#1A3B63", fontSize: 13, fontWeight: "bold" },
+  chipsContainer: { flexDirection: "row", paddingHorizontal: 20 },
   chip: {
     backgroundColor: "white",
+    borderRadius: 20,
     paddingHorizontal: 16,
     paddingVertical: 8,
-    borderRadius: 20,
-    marginRight: 10,
+    marginRight: 8,
     borderWidth: 1,
     borderColor: "#E5E7EB",
-    alignSelf: "flex-start",
   },
   chipActive: { backgroundColor: "#1A3B63", borderColor: "#1A3B63" },
-  chipText: { color: "#4B5563", fontWeight: "600", fontSize: 14 },
+  chipText: { color: "#4B5563", fontSize: 14, fontWeight: "500" },
   chipTextActive: { color: "white" },
-  body: { flex: 1 },
-  scrollContent: { padding: 20, paddingBottom: 40 },
-  emptyState: { alignItems: "center", justifyContent: "center", marginTop: 60 },
-  emptyStateText: {
-    color: "#1F2937",
-    marginTop: 10,
-    fontSize: 18,
-    fontWeight: "bold",
-    textAlign: "center",
-  },
-  emptyStateSubText: {
-    color: "#6B7280",
-    fontSize: 14,
-    textAlign: "center",
-    marginTop: 5,
-    marginBottom: 20,
-    paddingHorizontal: 20,
-  },
-  emptyStateButtons: { flexDirection: "row", gap: 10 },
-  emptyOutlineBtn: {
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#1A3B63",
-  },
-  emptyOutlineBtnText: { color: "#1A3B63", fontWeight: "bold" },
-  emptyPrimaryBtn: {
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 10,
-    backgroundColor: "#1A3B63",
-  },
-  emptyPrimaryBtnText: { color: "white", fontWeight: "bold" },
-
-  /* --- ESTILOS DE TARJETAS --- */
+  body: { flex: 1, marginTop: 15 },
+  scrollContent: { paddingHorizontal: 20, paddingBottom: 30 },
   card: {
     backgroundColor: "white",
     borderRadius: 16,
-    padding: 20,
-    marginBottom: 20,
-    elevation: 3,
+    padding: 16,
+    marginBottom: 15,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    elevation: 2,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 3 },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
-    shadowRadius: 5,
+    shadowRadius: 3,
   },
-  cardHighlight: { borderWidth: 2, borderColor: "#FBBF24" },
-  cardSelected: {
-    backgroundColor: "#EBF5FF",
-    borderWidth: 2,
-    borderColor: "#1A3B63",
-  },
+  cardHighlight: { borderColor: "#F59E0B", borderWidth: 1.5 },
+  cardSelected: { backgroundColor: "#E0E7FF", borderColor: "#4F46E5" },
   badgeContainer: {
     flexDirection: "row",
-    position: "absolute",
-    top: -12,
-    left: 20,
     backgroundColor: "#FEF3C7",
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
+    alignSelf: "flex-start",
+    marginBottom: 10,
     alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#FBBF24",
   },
   badgeText: { color: "#92400E", fontSize: 12, fontWeight: "bold" },
-  cardRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 15,
-    marginTop: 5,
-  },
+  cardRow: { flexDirection: "row", alignItems: "center" },
   avatar: { width: 60, height: 60, borderRadius: 30 },
   avatarPlaceholder: {
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: "#1A3B63",
+    backgroundColor: "#E5E7EB",
     justifyContent: "center",
     alignItems: "center",
   },
-  avatarSelected: { backgroundColor: "#1A3B63" },
-  avatarText: { color: "white", fontWeight: "bold", fontSize: 20 },
-  cardInfo: { flex: 1, marginLeft: 15 },
-  profName: { fontSize: 18, fontWeight: "bold", color: "#111827" },
-  profSpecialty: {
-    fontSize: 14,
-    color: "#1A3B63",
-    fontWeight: "700",
-    marginTop: 2,
-  },
+  avatarSelected: { backgroundColor: "#4F46E5" },
+  avatarText: { fontSize: 18, fontWeight: "bold", color: "#4B5563" },
+  cardInfo: { flex: 1, marginLeft: 12 },
+  profName: { fontSize: 16, fontWeight: "bold", color: "#1F2937" },
+  profSpecialty: { fontSize: 14, color: "#6B7280", marginTop: 2 },
   ratingRow: { flexDirection: "row", alignItems: "center", marginTop: 4 },
   ratingText: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: "bold",
-    color: "#374151",
+    color: "#1F2937",
     marginLeft: 4,
   },
-  reviewsText: { fontSize: 13, color: "#6B7280", marginLeft: 4 },
+  reviewsText: { fontSize: 12, color: "#6B7280", marginLeft: 4 },
   locationRow: { flexDirection: "row", alignItems: "center", marginTop: 4 },
-  locationText: { fontSize: 13, color: "#6B7280", marginLeft: 4, flex: 1 },
-  descText: {
-    fontSize: 14,
-    color: "#4B5563",
-    lineHeight: 20,
-    marginBottom: 15,
+  locationText: { fontSize: 13, color: "#6B7280", marginLeft: 4 },
+  descText: { fontSize: 14, color: "#4B5563", marginTop: 12, lineHeight: 20 },
+  actionsRow: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    marginTop: 15,
+    gap: 8,
   },
-  actionsRow: { flexDirection: "row", gap: 10 },
   outlineBtn: {
-    flex: 1,
     borderWidth: 1,
     borderColor: "#1A3B63",
-    borderRadius: 10,
-    paddingVertical: 12,
-    alignItems: "center",
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
   },
-  outlineBtnText: { color: "#1A3B63", fontWeight: "bold", fontSize: 15 },
+  outlineBtnText: { color: "#1A3B63", fontSize: 14, fontWeight: "600" },
   primaryBtn: {
-    flex: 1,
-    backgroundColor: "#F9B934",
-    borderRadius: 10,
-    paddingVertical: 12,
-    alignItems: "center",
+    backgroundColor: "#1A3B63",
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
   },
-  primaryBtnText: { color: "#1A3B63", fontWeight: "bold", fontSize: 15 },
-
-  /* --- MODALES Y CAMPOS --- */
+  primaryBtnText: { color: "white", fontSize: 14, fontWeight: "600" },
+  emptyState: { alignItems: "center", marginTop: 40, paddingHorizontal: 20 },
+  emptyStateText: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#374151",
+    marginTop: 10,
+  },
+  emptyStateSubText: {
+    fontSize: 14,
+    color: "#6B7280",
+    textAlign: "center",
+    marginTop: 5,
+  },
+  emptyStateButtons: { flexDirection: "row", marginTop: 20, gap: 10 },
+  emptyOutlineBtn: {
+    borderWidth: 1,
+    borderColor: "#6B7280",
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  emptyOutlineBtnText: { color: "#4B5563", fontWeight: "600" },
+  emptyPrimaryBtn: {
+    backgroundColor: "#1A3B63",
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  emptyPrimaryBtnText: { color: "white", fontWeight: "600" },
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    backgroundColor: "rgba(0,0,0,0.5)",
     justifyContent: "flex-end",
   },
   modalContent: {
     backgroundColor: "white",
-    borderTopLeftRadius: 30,
-    borderTopRightRadius: 30,
-    padding: 25,
-    paddingBottom: 40,
-    elevation: 5,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    maxHeight: "85%",
   },
   modalHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 30,
+    marginBottom: 20,
   },
-  modalTitle: { fontSize: 22, fontWeight: "bold", color: "#1A3B63" },
-  filterGroup: { marginBottom: 25 },
+  modalTitle: { fontSize: 20, fontWeight: "bold", color: "#1A3B63" },
+  filterGroup: { marginBottom: 20 },
   filterLabel: {
     fontSize: 16,
-    fontWeight: "bold",
-    color: "#333",
-    marginBottom: 12,
+    fontWeight: "600",
+    color: "#374151",
+    marginBottom: 10,
   },
-  optionsRow: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  optionsRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   modalChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
     backgroundColor: "#F3F4F6",
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
     borderWidth: 1,
-    borderColor: "#D1D5DB",
+    borderColor: "#E5E7EB",
   },
   modalChipActive: { backgroundColor: "#1A3B63", borderColor: "#1A3B63" },
-  modalChipText: { color: "#666", fontWeight: "600" },
-  modalChipTextActive: { color: "#FFF" },
+  modalChipText: { color: "#4B5563", fontSize: 14 },
+  modalChipTextActive: { color: "white", fontWeight: "600" },
   applyButton: {
-    backgroundColor: "#F9B934",
-    height: 55,
+    backgroundColor: "#1A3B63",
     borderRadius: 12,
+    height: 50,
     justifyContent: "center",
     alignItems: "center",
     marginTop: 10,
   },
-  applyButtonText: { color: "#1A3B63", fontSize: 16, fontWeight: "bold" },
+  applyButtonText: { color: "white", fontSize: 16, fontWeight: "bold" },
   clearButton: {
-    height: 55,
-    borderRadius: 12,
+    height: 50,
     justifyContent: "center",
     alignItems: "center",
-    marginTop: 10,
-    borderWidth: 1,
-    borderColor: "#1A3B63",
+    marginTop: 5,
   },
-  clearButtonText: { color: "#1A3B63", fontSize: 16, fontWeight: "600" },
-
-  /* --- OPCIONES DE REPORTE --- */
+  clearButtonText: { color: "#6B7280", fontSize: 15, fontWeight: "600" },
   reportOption: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 14,
-    borderRadius: 10,
+    padding: 12,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: "#E5E7EB",
   },
-  reportOptionActive: { borderColor: "#1A3B63", backgroundColor: "#EBF5FF" },
-  reportOptionText: { marginLeft: 12, fontSize: 15, color: "#1F2937" },
-  reportOptionTextActive: { fontWeight: "bold", color: "#1A3B63" },
+  reportOptionActive: { borderColor: "#1A3B63", backgroundColor: "#F0F4F8" },
+  reportOptionText: { marginLeft: 10, fontSize: 15, color: "#374151" },
+  reportOptionTextActive: { color: "#1A3B63", fontWeight: "600" },
   textArea: {
     borderWidth: 1,
     borderColor: "#E5E7EB",
-    borderRadius: 10,
+    borderRadius: 8,
     padding: 12,
-    minHeight: 90,
+    marginTop: 10,
+    height: 100,
     textAlignVertical: "top",
     color: "#1F2937",
-    marginTop: 8,
-    marginBottom: 20,
-    fontSize: 15,
   },
 });

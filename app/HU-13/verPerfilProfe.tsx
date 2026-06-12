@@ -18,7 +18,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 const COLORS = {
   primaryBlue: "#123F78",
-  accentGold: "#FBBF24", // Dorado más vibrante como la imagen
+  accentGold: "#FBBF24",
   textMain: "#111827",
   textSecondary: "#6B7280",
   bgLight: "#F3F4F6",
@@ -30,12 +30,26 @@ const COLORS = {
   pdfTagText: "#991B1B",
 };
 
+// Función para obtener las iniciales del nombre completo
+const obtenerIniciales = (nombre: string) => {
+  if (!nombre) return "??";
+  const partes = nombre.trim().split(/\s+/);
+  if (partes.length >= 2) {
+    return `${partes[0][0]}${partes[1][0]}`.toUpperCase();
+  }
+  return partes[0].substring(0, 2).toUpperCase();
+};
+
 export default function VerPerfilProfesional() {
   const router = useRouter();
   const { id } = useLocalSearchParams();
   const [perfil, setPerfil] = useState<any>(null);
   const [portafolio, setPortafolio] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Estados añadidos para hidratación dinámica desde la BD
+  const [rating, setRating] = useState({ promedio: 5.0, total: 0 });
+  const [listaEspecialidades, setListaEspecialidades] = useState<string[]>([]);
 
   useEffect(() => {
     if (id) cargarTodo();
@@ -44,15 +58,62 @@ export default function VerPerfilProfesional() {
   const cargarTodo = async () => {
     try {
       setLoading(true);
+
+      // 1. QUERY CORREGIDA: Trae perfiles, info técnica, categorías puente y ratings con nombres reales de la BD
       const { data: perfilData, error: pError } = await supabase
         .from("perfiles")
-        .select(`*, profesionales_info (*)`)
+        .select(
+          `
+          *, 
+          profesionales_info (
+            *,
+            profesional_categorias (
+              categorias (
+                nombre
+              )
+            ),
+            profesionales_rating (
+              promedio,
+              total_reviews
+            )
+          )
+        `,
+        )
         .eq("id", id)
         .single();
 
       if (pError) throw pError;
       setPerfil(perfilData);
 
+      // Procesar información de especialidades/categorías relacionales
+      const infoTecnica =
+        perfilData?.profesionales_info?.[0] || perfilData?.profesionales_info;
+
+      if (infoTecnica) {
+        // Extraer categorías asignadas
+        const cats =
+          infoTecnica.profesional_categorias
+            ?.map((pc: any) => pc.categorias?.nombre)
+            .filter(Boolean) || [];
+
+        // Si no tiene categorías en el puente, usamos el string 'titulo_especialidad' cortado por comas
+        if (cats.length > 0) {
+          setListaEspecialidades(cats);
+        } else if (infoTecnica.titulo_especialidad) {
+          setListaEspecialidades([infoTecnica.titulo_especialidad]);
+        } else {
+          setListaEspecialidades(["Especialista General"]);
+        }
+
+        // Extraer ratings reales corregidos de la BD
+        const rData = infoTecnica.profesionales_rating?.[0] || {};
+        setRating({
+          promedio: rData.promedio ?? 5.0,
+          total: rData.total_reviews ?? 0,
+        });
+      }
+
+      // 2. QUERY PORTAFOLIO
       const { data: portaData, error: portaError } = await supabase
         .from("portafolios")
         .select("*")
@@ -62,7 +123,7 @@ export default function VerPerfilProfesional() {
       if (portaError) throw portaError;
       setPortafolio(portaData || []);
     } catch (err) {
-      console.error("Error:", err);
+      console.error("Error cargando perfil completo:", err);
     } finally {
       setLoading(false);
     }
@@ -75,6 +136,11 @@ export default function VerPerfilProfesional() {
       </View>
     );
   }
+
+  // Desestructuración limpia de la información técnica extraída
+  const infoMedica = Array.isArray(perfil?.profesionales_info)
+    ? perfil?.profesionales_info[0]
+    : perfil?.profesionales_info;
 
   return (
     <View style={styles.mainContainer}>
@@ -102,45 +168,62 @@ export default function VerPerfilProfesional() {
         {/* TARJETA PRINCIPAL (HERO) */}
         <View style={styles.whiteCard}>
           <View style={styles.heroRow}>
-            <Image
-              source={{
-                uri: perfil?.avatar_url || "https://via.placeholder.com/150",
-              }}
-              style={styles.mainAvatar}
-            />
+            {/* CAMBIO AQUÍ: Renderizado condicional del Avatar (Foto o Iniciales) */}
+            {perfil?.avatar_url ? (
+              <Image
+                source={{ uri: perfil.avatar_url }}
+                style={styles.mainAvatar}
+              />
+            ) : (
+              <View style={styles.avatarIniciales}>
+                <Text style={styles.textoIniciales}>
+                  {obtenerIniciales(perfil?.nombre_completo)}
+                </Text>
+              </View>
+            )}
             <View style={styles.heroInfo}>
-              <Text style={styles.nameText}>{perfil?.nombre_completo}</Text>
+              <Text style={styles.nameText}>
+                {perfil?.nombre_completo || "Profesional de Confianza"}
+              </Text>
               <Text style={styles.professionText}>
-                {perfil?.profesionales_info?.titulo_especialidad}
+                {listaEspecialidades.join(", ")}
               </Text>
               <View style={styles.locationRow}>
                 <Ionicons name="location" size={16} color="#3B82F6" />
                 <Text style={styles.locationText}>
-                  {perfil?.ciudad || "Cochabamba"}
+                  {perfil?.ciudad || perfil?.ubicacion || "Cochabamba"}
                 </Text>
               </View>
               <View style={styles.ratingRow}>
                 <Ionicons name="star" size={16} color={COLORS.starGold} />
                 <Text style={styles.ratingText}>
-                  4.8 <Text style={styles.reviewsText}>(56 opiniones)</Text>
+                  {rating.promedio === 5 ? "5.0" : rating.promedio.toFixed(1)}{" "}
+                  <Text style={styles.reviewsText}>
+                    ({rating.total}{" "}
+                    {rating.total === 1 ? "opinión" : "opiniones"})
+                  </Text>
                 </Text>
               </View>
             </View>
           </View>
 
           <Text style={styles.shortBio}>
-            {perfil?.profesionales_info?.biografia ||
+            {infoMedica?.descripcion ||
               "Profesional comprometido con la calidad y el cumplimiento en cada proyecto."}
           </Text>
 
-          {/* STATS GRID */}
+          {/* STATS GRID DINÁMICO */}
           <View style={styles.statsGrid}>
             <StatItem
-              val={perfil?.profesionales_info?.experiencia || "0"}
+              val={
+                infoMedica?.experiencia
+                  ? `${infoMedica.experiencia} años`
+                  : "0 años"
+              }
               lab="Años de experiencia"
             />
-            <StatItem val="120+" lab="Servicios realizados" />
-            <StatItem val="98%" lab="Clientes satisfechos" />
+            <StatItem val="--" lab="Servicios realizados" />
+            <StatItem val="100%" lab="Clientes satisfechos" />
             <StatItem val="24 h" lab="Respuesta promedio" />
           </View>
         </View>
@@ -153,15 +236,15 @@ export default function VerPerfilProfesional() {
           title="Experiencia"
         >
           <Text style={styles.expHighlight}>
-            {perfil?.profesionales_info?.experiencia} años
+            {infoMedica?.experiencia || "0"} años de trayectoria
           </Text>
           <Text style={styles.secText}>
-            Trayectoria profesional en instalaciones y mantenimiento en{" "}
-            {perfil?.ciudad}.
+            Trayectoria profesional certificada en la plataforma ofreciendo
+            cobertura en {perfil?.ciudad || "Cochabamba"}.
           </Text>
         </SectionItem>
 
-        {/* SECCIÓN ESPECIALIDADES */}
+        {/* SECCIÓN ESPECIALIDADES DINÁMICAS */}
         <SectionItem
           icon={
             <Ionicons
@@ -173,17 +256,15 @@ export default function VerPerfilProfesional() {
           title="Especialidades"
         >
           <View style={styles.chipsRow}>
-            {["Electricidad residencial", "Instalaciones", "Mantenimiento"].map(
-              (c, i) => (
-                <View key={i} style={styles.chip}>
-                  <Text style={styles.chipText}>{c}</Text>
-                </View>
-              ),
-            )}
+            {listaEspecialidades.map((c, i) => (
+              <View key={i} style={styles.chip}>
+                <Text style={styles.chipText}>{c}</Text>
+              </View>
+            ))}
           </View>
         </SectionItem>
 
-        {/* SECCIÓN PORTAFOLIO (IGUAL A TU IMAGEN) */}
+        {/* SECCIÓN PORTAFOLIO */}
         <View style={styles.whiteCardSection}>
           <View style={styles.sectionTitleRow}>
             <Ionicons
@@ -197,50 +278,66 @@ export default function VerPerfilProfesional() {
             Proyectos y trabajos realizados
           </Text>
 
-          {portafolio.map((item, index) => (
-            <View key={index} style={styles.portItem}>
-              <Image
-                source={{ uri: item.url_previsualizacion }}
-                style={styles.portImg}
-              />
-              <View style={styles.portContent}>
-                <Text style={styles.portTitle} numberOfLines={2}>
-                  {item.titulo}
-                </Text>
-                <View style={styles.tagDateRow}>
-                  <View
-                    style={[
-                      styles.tag,
-                      item.tipo === "pdf" ? styles.tagPdf : styles.tagImg,
-                    ]}
-                  >
-                    <Text
+          {portafolio.length === 0 ? (
+            <Text
+              style={[styles.secText, { marginLeft: 28, fontStyle: "italic" }]}
+            >
+              No hay proyectos registrados en el portafolio aún.
+            </Text>
+          ) : (
+            portafolio.map((item, index) => (
+              <View key={index} style={styles.portItem}>
+                <Image
+                  source={{
+                    uri:
+                      item.url_previsualizacion ||
+                      "https://via.placeholder.com/150",
+                  }}
+                  style={styles.portImg}
+                />
+                <View style={styles.portContent}>
+                  <Text style={styles.portTitle} numberOfLines={2}>
+                    {item.titulo}
+                  </Text>
+                  <View style={styles.tagDateRow}>
+                    <View
                       style={[
-                        styles.tagText,
-                        item.tipo === "pdf"
-                          ? { color: COLORS.pdfTagText }
-                          : { color: COLORS.imgTagText },
+                        styles.tag,
+                        item.tipo === "pdf" ? styles.tagPdf : styles.tagImg,
                       ]}
                     >
-                      {item.tipo === "pdf" ? "PDF" : "Imagen"}
+                      <Text
+                        style={[
+                          styles.tagText,
+                          item.tipo === "pdf"
+                            ? { color: COLORS.pdfTagText }
+                            : { color: COLORS.imgTagText },
+                        ]}
+                      >
+                        {item.tipo === "pdf" ? "PDF" : "Imagen"}
+                      </Text>
+                    </View>
+                    <Text style={styles.portDate}>
+                      {item.fecha_formateada || "Reciente"}
                     </Text>
                   </View>
-                  <Text style={styles.portDate}>
-                    {item.fecha_formateada || "15 abr 2025"}
-                  </Text>
                 </View>
               </View>
-            </View>
-          ))}
+            ))
+          )}
 
-          <TouchableOpacity style={styles.fullWidthGrayBtn}>
-            <Text style={styles.grayBtnText}>Ver todo el portafolio (12)</Text>
-            <Ionicons
-              name="chevron-forward"
-              size={16}
-              color={COLORS.primaryBlue}
-            />
-          </TouchableOpacity>
+          {portafolio.length > 0 && (
+            <TouchableOpacity style={styles.fullWidthGrayBtn}>
+              <Text style={styles.grayBtnText}>
+                Ver todo el portafolio ({portafolio.length})
+              </Text>
+              <Ionicons
+                name="chevron-forward"
+                size={16}
+                color={COLORS.primaryBlue}
+              />
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* SECCIÓN RESEÑAS */}
@@ -250,13 +347,19 @@ export default function VerPerfilProfesional() {
             <Text style={styles.sectionTitleText}>Reseñas de clientes</Text>
           </View>
           <View style={styles.reviewMainRow}>
-            <Text style={styles.bigRating}>4.8 de 5</Text>
-            <Text style={styles.reviewSub}>(56 opiniones)</Text>
+            <Text style={styles.bigRating}>
+              {rating.promedio === 5 ? "5.0" : rating.promedio.toFixed(1)} de 5
+            </Text>
+            <Text style={styles.reviewSub}>
+              ({rating.total} {rating.total === 1 ? "opinión" : "opiniones"})
+            </Text>
             <View style={styles.starsRow}>
               {[1, 2, 3, 4, 5].map((i) => (
                 <Ionicons
                   key={i}
-                  name="star"
+                  name={
+                    i <= Math.round(rating.promedio) ? "star" : "star-outline"
+                  }
                   size={14}
                   color={COLORS.starGold}
                 />
@@ -293,7 +396,12 @@ export default function VerPerfilProfesional() {
             <Text style={styles.btnGoldText}>Enviar solicitud de servicio</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.btnOutline}>
+          <TouchableOpacity
+            style={styles.btnOutline}
+            onPress={() =>
+              alert(`Iniciando chat con ${perfil?.nombre_completo}...`)
+            }
+          >
             <Ionicons
               name="chatbubble-ellipses-outline"
               size={22}
@@ -319,7 +427,6 @@ export default function VerPerfilProfesional() {
   );
 }
 
-// Helpers
 const StatItem = ({ val, lab }: any) => (
   <View style={styles.statBox}>
     <Text style={styles.statVal}>{val}</Text>
@@ -348,7 +455,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   headerTitle: { color: "white", fontSize: 18, fontWeight: "600" },
-
   whiteCard: {
     backgroundColor: "white",
     margin: 16,
@@ -380,7 +486,6 @@ const styles = StyleSheet.create({
   },
   ratingText: { fontWeight: "bold", fontSize: 14 },
   reviewsText: { fontWeight: "normal", color: COLORS.textSecondary },
-
   shortBio: {
     color: COLORS.textMain,
     lineHeight: 20,
@@ -388,7 +493,6 @@ const styles = StyleSheet.create({
     marginTop: 15,
     textAlign: "left",
   },
-
   statsGrid: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -405,7 +509,6 @@ const styles = StyleSheet.create({
     marginTop: 4,
     textAlign: "center",
   },
-
   sectionCard: {
     backgroundColor: "white",
     marginHorizontal: 16,
@@ -431,7 +534,6 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   secText: { color: COLORS.textSecondary, fontSize: 13, lineHeight: 18 },
-
   chipsRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   chip: {
     backgroundColor: "#F3F4F6",
@@ -440,7 +542,6 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   chipText: { color: COLORS.textSecondary, fontSize: 12, fontWeight: "500" },
-
   whiteCardSection: {
     backgroundColor: "white",
     marginHorizontal: 16,
@@ -454,7 +555,6 @@ const styles = StyleSheet.create({
     marginLeft: 28,
     marginBottom: 15,
   },
-
   portItem: { flexDirection: "row", marginBottom: 15 },
   portImg: { width: 100, height: 75, borderRadius: 10 },
   portContent: { flex: 1, marginLeft: 12, justifyContent: "center" },
@@ -470,7 +570,6 @@ const styles = StyleSheet.create({
   tagPdf: { backgroundColor: COLORS.pdfTagBg },
   tagText: { fontSize: 10, fontWeight: "bold" },
   portDate: { fontSize: 11, color: COLORS.textSecondary },
-
   fullWidthGrayBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -482,7 +581,6 @@ const styles = StyleSheet.create({
     gap: 5,
   },
   grayBtnText: { color: COLORS.primaryBlue, fontWeight: "600", fontSize: 13 },
-
   reviewMainRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -492,7 +590,6 @@ const styles = StyleSheet.create({
   bigRating: { fontSize: 16, fontWeight: "bold", color: COLORS.primaryBlue },
   reviewSub: { fontSize: 13, color: COLORS.textSecondary },
   starsRow: { flexDirection: "row", gap: 2 },
-
   actionArea: { padding: 20, gap: 12 },
   btnGold: {
     backgroundColor: COLORS.accentGold,
@@ -519,7 +616,6 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     fontSize: 16,
   },
-
   verifyRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -532,5 +628,18 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: COLORS.textSecondary,
     lineHeight: 15,
+  }, // Añade esto a tus estilos actuales:
+  avatarIniciales: {
+    width: 85,
+    height: 85,
+    borderRadius: 42.5,
+    backgroundColor: "#123F78", // El mismo azul oscuro primaryBlue
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  textoIniciales: {
+    color: "#FFFFFF",
+    fontSize: 28, // Tamaño ideal para que resalte dentro del círculo de 85px
+    fontWeight: "bold",
   },
 });

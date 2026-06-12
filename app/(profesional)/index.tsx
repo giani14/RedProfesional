@@ -27,6 +27,7 @@ const COLORS = {
   cardYellow: "#FEF3C7",
   cardGreen: "#DCFCE7",
   cardPurple: "#F3E8FF",
+  danger: "#DC2626",
 };
 
 interface QuickAccessProps {
@@ -61,6 +62,7 @@ function QuickAccessCard({
 
 export default function ProfesionalIndex() {
   const [loading, setLoading] = useState(true);
+  const [tieneAvisosNuevos, setTieneAvisosNuevos] = useState(false);
   const [userData, setUserData] = useState<{
     nombre: string;
     rol: string;
@@ -69,6 +71,7 @@ export default function ProfesionalIndex() {
 
   useEffect(() => {
     fetchUserProfile();
+    validarNotificacionesPendientes();
   }, []);
 
   const fetchUserProfile = async () => {
@@ -98,9 +101,31 @@ export default function ProfesionalIndex() {
     }
   };
 
+  // Consulta ligera para ver si existen filas sin leer dirigidas a este usuario
+  const validarNotificacionesPendientes = async () => {
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (user) {
+        const { count, error } = await supabase
+          .from("notificaciones")
+          .select("*", { count: "exact", head: true })
+          .eq("usuario_id", user.id)
+          .eq("leido", false);
+
+        if (!error && count !== null) {
+          setTieneAvisosNuevos(count > 0);
+        }
+      }
+    } catch (err) {
+      console.log("Error leyendo estado de campana:", err);
+    }
+  };
+
   const getInitials = (name: string) => {
-    if (!name) return "U"; // 'U' de Usuario por defecto
-    const parts = name.trim().split(/\s+/); // Divide por cualquier espacio
+    if (!name) return "U";
+    const parts = name.trim().split(/\s+/);
     if (parts.length >= 2) {
       return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
     }
@@ -119,7 +144,7 @@ export default function ProfesionalIndex() {
     <SafeAreaView style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
 
-      {/* Header con Menu y Notificaciones */}
+      {/* Header con Menu y Notificaciones Activas */}
       <View style={styles.header}>
         <TouchableOpacity>
           <Ionicons name="menu" size={30} color={COLORS.white} />
@@ -127,12 +152,21 @@ export default function ProfesionalIndex() {
         <Text style={styles.headerLogo}>
           Red<Text style={{ color: COLORS.accentGold }}>Profesional</Text>
         </Text>
-        <TouchableOpacity onPress={() => router.push("/HU-20" as any)}>
+
+        {/* Campana Enlazada a la HU-18 del Profesional */}
+        <TouchableOpacity
+          style={styles.notifButton}
+          onPress={() => {
+            setTieneAvisosNuevos(false); // Limpieza visual inmediata
+            router.push("/HU-17/notificacionProfesional" as any);
+          }}
+        >
           <Ionicons
             name="notifications-outline"
             size={28}
             color={COLORS.white}
           />
+          {tieneAvisosNuevos && <View style={styles.badgeAlerta} />}
         </TouchableOpacity>
       </View>
 
@@ -145,7 +179,6 @@ export default function ProfesionalIndex() {
               style={styles.mainAvatar}
             />
           ) : (
-            /* Círculo de iniciales estilizado según la imagen */
             <View style={[styles.mainAvatar, styles.initialsContainer]}>
               <Text style={styles.initialsText}>
                 {getInitials(userData?.nombre || "")}
@@ -160,11 +193,13 @@ export default function ProfesionalIndex() {
             </Text>
 
             <View style={styles.roleBadge}>
-              <Text style={styles.roleText}>{userData?.rol || "Cliente"}</Text>
+              <Text style={styles.roleText}>
+                {userData?.rol || "Profesional"}
+              </Text>
             </View>
 
             <Text style={styles.welcomeSubtitle}>
-              Encuentra profesionales calificados para tus proyectos.
+              Administra tus trabajos, revisa tus disputas y asegura tus cobros.
             </Text>
           </View>
         </View>
@@ -201,13 +236,7 @@ export default function ProfesionalIndex() {
             color={COLORS.cardBlue}
             onPress={() => router.push("/HU-10/editarPortafolio" as any)}
           />
-          <QuickAccessCard
-            icon="search-outline"
-            title="Buscar clientes"
-            subtitle="Encuentra oportunidades"
-            color={COLORS.cardGreen}
-            onPress={() => {}}
-          />
+
           <QuickAccessCard
             icon="chatbubble-outline"
             title="Mensajes"
@@ -234,6 +263,18 @@ const styles = StyleSheet.create({
     paddingTop: 30,
   },
   headerLogo: { color: "white", fontSize: 22, fontWeight: "bold" },
+  notifButton: { position: "relative", padding: 4 },
+  badgeAlerta: {
+    position: "absolute",
+    right: 4,
+    top: 4,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: COLORS.danger,
+    borderWidth: 1.5,
+    borderColor: COLORS.primaryBlue,
+  },
   scrollContent: { paddingBottom: 100 },
   welcomeSection: {
     flexDirection: "row",
@@ -244,17 +285,16 @@ const styles = StyleSheet.create({
     width: 100,
     height: 100,
     borderRadius: 50,
-    //backgroundColor: COLORS.white,
   },
   initialsContainer: {
-    backgroundColor: "#1A4670", // El azul marino del ejemplo
-    justifyContent: "center", // Centrado vertical
-    alignItems: "center", // Centrado horizontal
+    backgroundColor: "#1A4670",
+    justifyContent: "center",
+    alignItems: "center",
     borderRadius: 60,
   },
   initialsText: {
-    color: "#FFFFFF", // Texto blanco
-    fontSize: 60, // Tamaño grande para que sea bold
+    color: "#FFFFFF",
+    fontSize: 40, // Bajado ligeramente de 60 para evitar cortes en iniciales dobles
     fontWeight: "bold",
     textAlign: "center",
   },

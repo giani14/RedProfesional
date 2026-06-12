@@ -9,6 +9,7 @@ import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Linking,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -28,6 +29,8 @@ const COLORS = {
   successBg: "#D1FAE5",
   successText: "#047857",
   dangerBg: "#FEE2E2",
+  warningBg: "#FEF3C7",
+  warningText: "#D97706",
 };
 
 interface Solicitud {
@@ -35,7 +38,7 @@ interface Solicitud {
   cliente_id: string;
   profesional_id: string;
   estado: string;
-  descripcion_problema: string;
+  descripcion: string;
   fecha_solicitud: string;
   actualizado_at: string;
   proyecto: string;
@@ -43,15 +46,16 @@ interface Solicitud {
   fecha_estimada: string;
   descripcion_de_rechazo: string | null;
   fecha_aceptada_rechazada: string | null;
+  evidencia_url: string | null;
   perfiles: {
     ubicacion: string;
     nombre_completo: string;
-  };
+  } | null;
+  profesional?: {
+    ubicacion: string;
+    nombre_completo: string;
+  } | null;
 }
-
-const SOLICITUD_MOCK = {
-  archivos: [{ nombre: "requisitos_proyecto.pdf" }],
-};
 
 const formatearFechaReal = (fechaStr: string): string => {
   if (!fechaStr) return "Sin fecha";
@@ -76,7 +80,12 @@ export default function SolicitudDetalle() {
   const [modalAceptar, setModalAceptar] = useState(false);
   const [modalRechazar, setModalRechazar] = useState(false);
   const [modalFinalizar, setModalFinalizar] = useState(false);
+  const [modalDisputa, setModalDisputa] = useState(false);
+  const [modalEntregar, setModalEntregar] = useState(false);
+
   const [motivoRechazo, setMotivoRechazo] = useState("");
+  const [motivoDisputa, setMotivoDisputa] = useState("");
+  const [urlEvidencia, setUrlEvidencia] = useState("");
 
   useEffect(() => {
     if (id) fetchData();
@@ -93,10 +102,19 @@ export default function SolicitudDetalle() {
         .from("solicitudes_servicio")
         .select(
           `
-          *,
-          perfiles:cliente_id (nombre_completo, ubicacion),
-          profesional:profesional_id (nombre_completo, ubicacion)
-        `,
+        id,
+        cliente_id,
+        profesional_id,
+        estado,
+        descripcion,
+        proyecto,
+        presupuesto,
+        fecha_estimada,
+        actualizado_at,
+        fecha_solicitud,
+        perfiles:cliente_id (nombre_completo, ubicacion),
+        profesional:profesional_id (nombre_completo, ubicacion)
+      `,
         )
         .eq("id", id)
         .single();
@@ -115,11 +133,11 @@ export default function SolicitudDetalle() {
           data.estado = "revisando";
         }
 
-        setItems(data);
+        setItems(data as unknown as Solicitud);
         setEstado(data.estado);
       }
     } catch (error: any) {
-      console.error("Error obteniendo datos:", error.message);
+      console.error("Error obteniendo datos en el detalle:", error.message);
     } finally {
       setIsLoading(false);
     }
@@ -147,7 +165,6 @@ export default function SolicitudDetalle() {
       setIsLoading(true);
       const fechaActualISO = new Date().toISOString();
 
-      // 1. Primero aseguramos la solicitud (Esto es lo que ya funcionaba)
       const { error: errorSolicitud } = await supabase
         .from("solicitudes_servicio")
         .update({
@@ -158,7 +175,6 @@ export default function SolicitudDetalle() {
 
       if (errorSolicitud) throw errorSolicitud;
 
-      // 2. Intentamos crear el chat en un bloque separado para que no rompa lo anterior
       try {
         const { data: chatExistente } = await supabase
           .from("chats")
@@ -176,23 +192,20 @@ export default function SolicitudDetalle() {
           ]);
         }
       } catch (chatErr) {
-        console.log(
-          "El chat no se creó, probablemente por políticas RLS:",
-          chatErr,
-        );
-        // No lanzamos error aquí para que la solicitud sí quede como 'aceptada'
+        console.log("Error al validar/crear chat:", chatErr);
       }
 
       setEstado("aceptada");
       await fetchData();
     } catch (error: any) {
-      // Este catch ahora solo atrapará errores de la SOLICITUD
-      Alert.alert("Error", "No se pudo actualizar la solicitud.");
+      console.error("Error crítico al aceptar solicitud:", error.message);
+      Alert.alert("Error", "No se pudo aceptar la solicitud.");
     } finally {
       setModalAceptar(false);
       setIsLoading(false);
     }
   };
+
   const confirmarRechazar = async () => {
     try {
       setIsLoading(true);
@@ -212,6 +225,38 @@ export default function SolicitudDetalle() {
     } finally {
       setModalRechazar(false);
       setMotivoRechazo("");
+      setIsLoading(false);
+    }
+  };
+
+  const confirmarEntrega = async () => {
+    if (!urlEvidencia.trim()) {
+      Alert.alert(
+        "Aviso",
+        "Por favor ingresa un enlace válido para tu evidencia.",
+      );
+      return;
+    }
+    try {
+      setIsLoading(true);
+      const { error } = await supabase
+        .from("solicitudes_servicio")
+        .update({
+          estado: "entregado",
+          evidencia_url: urlEvidencia.trim(),
+          actualizado_at: new Date().toISOString(),
+        })
+        .eq("id", id);
+
+      if (error) throw error;
+      setEstado("entregado");
+      await fetchData();
+    } catch (error: any) {
+      console.error("Error al procesar la entrega:", error.message);
+      Alert.alert("Error", "No se pudo guardar la entrega.");
+    } finally {
+      setModalEntregar(false);
+      setUrlEvidencia("");
       setIsLoading(false);
     }
   };
@@ -237,6 +282,40 @@ export default function SolicitudDetalle() {
     }
   };
 
+  const confirmarDisputa = async () => {
+    try {
+      setIsLoading(true);
+      const { error } = await supabase
+        .from("solicitudes_servicio")
+        .update({
+          estado: "disputa",
+          descripcion_de_rechazo: motivoDisputa,
+          actualizado_at: new Date().toISOString(),
+        })
+        .eq("id", id);
+      if (error) throw error;
+      setEstado("disputa");
+      await fetchData();
+    } catch (error: any) {
+      console.error("Error al iniciar disputa:", error.message);
+      Alert.alert("Error", "No se pudo reportar la disputa.");
+    } finally {
+      setModalDisputa(false);
+      setMotivoDisputa("");
+      setIsLoading(false);
+    }
+  };
+
+  const verEvidencia = () => {
+    if (items?.evidencia_url) {
+      Linking.openURL(items.evidencia_url).catch(() => {
+        Alert.alert("Error", "No se pudo abrir el enlace de la entrega.");
+      });
+    } else {
+      Alert.alert("Aviso", "No se encontró ningún enlace o archivo adjunto.");
+    }
+  };
+
   if (isLoading) {
     return (
       <SafeAreaView style={styles.container}>
@@ -247,6 +326,9 @@ export default function SolicitudDetalle() {
       </SafeAreaView>
     );
   }
+
+  // Define de forma dinámica a qué perfil apuntar para la tarjeta principal
+  const perfilMostrado = isCliente ? items?.profesional : items?.perfiles;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -277,32 +359,65 @@ export default function SolicitudDetalle() {
         <Text style={styles.title}>Detalle de solicitud</Text>
 
         <ProfileCard
-          nombre={items?.perfiles?.nombre_completo || "Cargando..."}
-          rol={items?.perfiles?.ubicacion || "Cargando..."}
+          nombre={
+            perfilMostrado?.nombre_completo || "Usuario de RedProfesional"
+          }
+          rol={perfilMostrado?.ubicacion || "Cochabamba, Bolivia"}
           estado={estado || "pendiente"}
         />
 
         <InfoSection
           label="Servicio"
-          value={items?.proyecto || "Cargando..."}
+          value={items?.proyecto || "No especificado"}
         />
         <InfoSection
           label="Descripción"
-          value={items?.descripcion_problema || "Cargando..."}
+          value={items?.descripcion || "Sin descripción adicional."}
         />
         <InfoSection
           label="Presupuesto"
-          value={items?.presupuesto ? `${items.presupuesto} $` : "Por acordar"}
+          value={
+            items?.presupuesto ? `Bs. ${items.presupuesto}` : "Por acordar"
+          }
         />
         <InfoSection
           label="Fecha estimada de entrega"
           value={formatearFechaReal(items?.fecha_estimada || "")}
         />
 
+        {items?.evidencia_url && (
+          <InfoSection label="Entrega del Profesional">
+            <TouchableOpacity
+              style={styles.btnEvidencia}
+              onPress={verEvidencia}
+            >
+              <Ionicons
+                name="cloud-download-outline"
+                size={20}
+                color={COLORS.primaryBlue}
+              />
+              <Text style={styles.btnEvidenciaText}>
+                Ver Trabajo / Archivo Entregado
+              </Text>
+            </TouchableOpacity>
+          </InfoSection>
+        )}
+
         <InfoSection label="Archivos adjuntos">
-          {SOLICITUD_MOCK.archivos.map((a) => (
-            <AttachmentItem key={a.nombre} nombre={a.nombre} />
-          ))}
+          {items?.evidencia_url ? (
+            <AttachmentItem nombre="documento_adjunto.pdf" />
+          ) : (
+            <Text
+              style={{
+                color: COLORS.textGray,
+                fontSize: 14,
+                fontStyle: "italic",
+                marginLeft: 4,
+              }}
+            >
+              No se adjuntaron archivos a esta solicitud.
+            </Text>
+          )}
         </InfoSection>
 
         {(estado === "pendiente" || estado === "revisando") && (
@@ -388,7 +503,7 @@ export default function SolicitudDetalle() {
                       .single();
                     data = nChat;
                   }
-                  if (data) router.push(`/chat/${data.id}`); // Navegación limpia
+                  if (data) router.push(`/chat/${data.id}`);
                 } catch (err) {
                   Alert.alert("Error", "No se pudo conectar al chat.");
                 } finally {
@@ -400,33 +515,107 @@ export default function SolicitudDetalle() {
               <Text style={styles.textBtnChat}>Ir al chat</Text>
             </TouchableOpacity>
 
-            {!isCliente && (
+            {!isCliente ? (
               <TouchableOpacity
-                style={styles.btnFinalizar}
-                onPress={() => setModalFinalizar(true)}
+                style={[
+                  styles.btnFinalizar,
+                  { backgroundColor: COLORS.accentGold },
+                ]}
+                onPress={() => setModalEntregar(true)}
               >
                 <Ionicons
-                  name="checkmark-done"
+                  name="cloud-upload-outline"
                   size={20}
                   color={COLORS.white}
                 />
-                <Text style={styles.btnAceptarText}>Finalizar servicio</Text>
+                <Text style={styles.btnAceptarText}>
+                  Entregar Trabajo Terminado
+                </Text>
               </TouchableOpacity>
+            ) : (
+              <View
+                style={[styles.banner, { backgroundColor: COLORS.successBg }]}
+              >
+                <Ionicons
+                  name="checkmark-circle"
+                  size={20}
+                  color={COLORS.successText}
+                />
+                <Text
+                  style={[styles.bannerText, { color: COLORS.successText }]}
+                >
+                  Aceptaste esta solicitud. El profesional está trabajando en
+                  ella.
+                </Text>
+              </View>
             )}
+          </View>
+        )}
 
-            <View
-              style={[styles.banner, { backgroundColor: COLORS.successBg }]}
-            >
-              <Ionicons
-                name="checkmark-circle"
-                size={20}
-                color={COLORS.successText}
-              />
-              <Text style={[styles.bannerText, { color: COLORS.successText }]}>
-                Solicitud aceptada el{" "}
-                {formatearFechaReal(items?.fecha_aceptada_rechazada || "")}
-              </Text>
-            </View>
+        {estado === "entregado" && (
+          <View style={styles.actions}>
+            {isCliente ? (
+              <>
+                <View
+                  style={[
+                    styles.banner,
+                    { backgroundColor: COLORS.warningBg, marginBottom: 10 },
+                  ]}
+                >
+                  <Ionicons
+                    name="alert-circle"
+                    size={22}
+                    color={COLORS.warningText}
+                  />
+                  <Text
+                    style={[styles.bannerText, { color: COLORS.warningText }]}
+                  >
+                    El profesional marcó este trabajo como terminado. Revisa la
+                    entrega antes de autorizar el pago seguro.
+                  </Text>
+                </View>
+
+                <TouchableOpacity
+                  style={styles.btnFinalizar}
+                  onPress={() => setModalFinalizar(true)}
+                >
+                  <Ionicons
+                    name="gift-outline"
+                    size={20}
+                    color={COLORS.white}
+                  />
+                  <Text style={styles.btnAceptarText}>
+                    Aprobar Trabajo y Pagar
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.btnRechazar}
+                  onPress={() => setModalDisputa(true)}
+                >
+                  <Ionicons
+                    name="warning-outline"
+                    size={20}
+                    color={COLORS.danger}
+                  />
+                  <Text style={styles.btnRechazarText}>
+                    Iniciar Disputa / Reclamo
+                  </Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <View
+                style={[styles.banner, { backgroundColor: COLORS.warningBg }]}
+              >
+                <Ionicons name="time" size={20} color={COLORS.warningText} />
+                <Text
+                  style={[styles.bannerText, { color: COLORS.warningText }]}
+                >
+                  Ya enviaste los entregables. Esperando la validación y
+                  conformidad del cliente.
+                </Text>
+              </View>
+            )}
           </View>
         )}
 
@@ -438,7 +627,7 @@ export default function SolicitudDetalle() {
               color={COLORS.successText}
             />
             <Text style={[styles.bannerText, { color: COLORS.successText }]}>
-              Servicio finalizado el{" "}
+              Servicio finalizado con éxito el{" "}
               {formatearFechaReal(items?.actualizado_at || "")}
             </Text>
           </View>
@@ -450,6 +639,20 @@ export default function SolicitudDetalle() {
             <Text style={[styles.bannerText, { color: COLORS.danger }]}>
               Solicitud rechazada el{" "}
               {formatearFechaReal(items?.fecha_aceptada_rechazada || "")}
+              {items?.descripcion_de_rechazo &&
+                `\nMotivo: ${items.descripcion_de_rechazo}`}
+            </Text>
+          </View>
+        )}
+
+        {estado === "disputa" && (
+          <View style={[styles.banner, { backgroundColor: COLORS.dangerBg }]}>
+            <Ionicons name="shield-sharp" size={22} color={COLORS.danger} />
+            <Text style={[styles.bannerText, { color: COLORS.danger }]}>
+              Este contrato se encuentra bajo **Disputa**. El equipo de soporte
+              revisará los motivos y las pruebas adjuntas para resolver el caso.
+              {items?.descripcion_de_rechazo &&
+                `\n\nQueja registrada: "${items.descripcion_de_rechazo}"`}
             </Text>
           </View>
         )}
@@ -475,7 +678,6 @@ export default function SolicitudDetalle() {
         onConfirm={confirmarRechazar}
         onCancel={() => {
           setModalRechazar(false);
-
           setMotivoRechazo("");
         }}
         withInput
@@ -486,11 +688,53 @@ export default function SolicitudDetalle() {
       />
 
       <ConfirmacionModal
+        visible={modalEntregar}
+        titulo="Enviar Entregables del Servicio"
+        descripcion="Inserta el link de la evidencia de tu trabajo (Google Drive, GitHub, Dropbox, etc.). El cliente deberá validarlo para completar el pago."
+        iconName="cloud-upload"
+        iconColor={COLORS.primaryBlue}
+        iconBg="#E0F2FE"
+        confirmColor={COLORS.primaryBlue}
+        confirmLabel="Enviar Trabajo"
+        onConfirm={confirmarEntrega}
+        onCancel={() => {
+          setModalEntregar(false);
+          setUrlEvidencia("");
+        }}
+        withInput
+        inputValue={urlEvidencia}
+        onChangeInputValue={setUrlEvidencia}
+        inputPlaceholder="https://link-de-tu-evidencia.com/..."
+        inputMaxLength={250}
+      />
+
+      <ConfirmacionModal
         visible={modalFinalizar}
-        titulo="¿Finalizar servicio?"
-        descripcion="Al confirmar, la solicitud pasará a estado finalizado y el cliente podrá calificar tu trabajo."
+        titulo="¿Liberar pago y finalizar?"
+        descripcion="Al confirmar, declaras estar 100% de acuerdo con el trabajo recibido. El dinero se transferirá de forma definitiva al profesional."
         onConfirm={confirmarFinalizar}
         onCancel={() => setModalFinalizar(false)}
+      />
+
+      <ConfirmacionModal
+        visible={modalDisputa}
+        titulo="¿Iniciar Disputa Contractual?"
+        descripcion="Por favor, especifica detalladamente los fallos en la entrega o los acuerdos incumplidos. Un administrador mediará la situación."
+        iconName="warning"
+        iconColor={COLORS.danger}
+        iconBg={COLORS.dangerBg}
+        confirmColor={COLORS.danger}
+        confirmLabel="Reportar Disputa"
+        onConfirm={confirmarDisputa}
+        onCancel={() => {
+          setModalDisputa(false);
+          setMotivoDisputa("");
+        }}
+        withInput
+        inputValue={motivoDisputa}
+        onChangeInputValue={setMotivoDisputa}
+        inputPlaceholder="Escribe aquí los motivos detallados..."
+        inputMaxLength={200}
       />
     </SafeAreaView>
   );
@@ -564,6 +808,22 @@ const styles = StyleSheet.create({
     borderColor: COLORS.danger,
   },
   btnRechazarText: { color: COLORS.danger, fontSize: 15, fontWeight: "bold" },
+  btnEvidencia: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    padding: 12,
+    borderRadius: 10,
+    backgroundColor: COLORS.white,
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
+    marginTop: 4,
+  },
+  btnEvidenciaText: {
+    color: COLORS.primaryBlue,
+    fontSize: 14,
+    fontWeight: "600",
+  },
   banner: {
     flexDirection: "row",
     alignItems: "center",

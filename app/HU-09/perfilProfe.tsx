@@ -1,16 +1,17 @@
+import { listarMisPortafolios, PortafolioDB } from "@/lib/portafolioService"; // 👈 Importamos el servicio existente
 import { supabase } from "@/lib/supabase";
 import { Ionicons } from "@expo/vector-icons";
 import { router, Stack } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    Image,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Image,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 const COLORS = {
@@ -19,7 +20,7 @@ const COLORS = {
   white: "#FFFFFF",
   textDark: "#1F2937",
   textGray: "#6B7280",
-  bgLight: "#F0F4F8", // Un tono más gris azulado para que resalten las cards
+  bgLight: "#F0F4F8",
   cardBg: "#FFFFFF",
   borderLight: "#E5E7EB",
 };
@@ -53,10 +54,33 @@ const PortfolioCard = ({
 }: {
   title: string;
   files: string;
-  image: string;
+  image: string | null;
 }) => (
   <View style={styles.portfolioCard}>
-    <Image source={{ uri: image }} style={styles.portfolioImage} />
+    {image ? (
+      <Image
+        source={{ uri: image }}
+        style={styles.portfolioImage}
+        resizeMode="cover"
+      />
+    ) : (
+      <View
+        style={[
+          styles.portfolioImage,
+          {
+            backgroundColor: COLORS.bgLight,
+            justifyContent: "center",
+            alignItems: "center",
+          },
+        ]}
+      >
+        <Ionicons
+          name="document-text-outline"
+          size={32}
+          color={COLORS.textGray}
+        />
+      </View>
+    )}
     <View style={styles.portfolioInfo}>
       <Text style={styles.portfolioTitle} numberOfLines={2}>
         {title}
@@ -76,34 +100,50 @@ const PortfolioCard = ({
 export default function PerfilProfesional() {
   const [loading, setLoading] = useState(true);
   const [userData, setUserData] = useState<any>(null);
+  const [misTrabajos, setMisTrabajos] = useState<PortafolioDB[]>([]); // 👈 Estado para los trabajos reales
 
   useEffect(() => {
-    fetchUserProfile();
+    cargarDatosCompletos();
   }, []);
 
-  const fetchUserProfile = async () => {
+  const cargarDatosCompletos = async () => {
     try {
       setLoading(true);
+
+      // 1. Obtener el usuario autenticado desde Supabase Auth
       const {
         data: { user },
       } = await supabase.auth.getUser();
+
       if (user) {
-        const { data, error } = await supabase
-          .from("perfiles")
-          .select("nombre_completo, rol, avatar_url, biografia, ubicacion")
+        // 2. Traer el perfil agregando campos de métricas si existen (ej: rating, proyectos_completados)
+        const { data: perfilData, error: perfilError } = await supabase
+          .from("profesionales_info")
+          .select(
+            "id, nombre, apellido, rol_or_profesion, ciudad, avatar_url, biografia, rating, proyectos_totales",
+          ) // 👈 Agrega tus columnas aquí
           .eq("id", user.id)
           .single();
 
-        if (error) throw error;
-        setUserData(data);
+        if (perfilError) {
+          console.warn(
+            "Aviso: El ID de Auth no se encuentra en la tabla profesionales_info. Crea el registro en tu BD.",
+          );
+          throw perfilError;
+        }
+
+        setUserData(perfilData);
+
+        // 3. Traer los trabajos publicados reales desde el servicio
+        const listaTrabajos = await listarMisPortafolios();
+        setMisTrabajos(listaTrabajos);
       }
     } catch (error) {
-      console.error(error);
+      console.error("Error sincronizando el perfil con la BD:", error);
     } finally {
       setLoading(false);
     }
   };
-
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -160,7 +200,9 @@ export default function PerfilProfesional() {
 
             <View style={styles.textContainer}>
               <Text style={styles.userNameText}>
-                {userData?.nombre_completo || "Cargando..."}
+                {userData
+                  ? `${userData.nombre} ${userData.apellido || ""}`
+                  : "Usuario No Registrado"}
               </Text>
               <View style={styles.subInfoRow}>
                 <Ionicons
@@ -169,7 +211,7 @@ export default function PerfilProfesional() {
                   color={COLORS.primaryBlue}
                 />
                 <Text style={styles.roleText}>
-                  {userData?.rol || "Profesional"}
+                  {userData?.rol_or_profesion || "Profesión no definida"}
                 </Text>
               </View>
               <View style={styles.subInfoRow}>
@@ -179,7 +221,7 @@ export default function PerfilProfesional() {
                   color={COLORS.textGray}
                 />
                 <Text style={styles.locationText}>
-                  {userData?.ubicacion || "Bolivia"}
+                  {userData?.ciudad || "Cochabamba, Bolivia"}
                 </Text>
               </View>
               <Text style={styles.bioText}>
@@ -189,16 +231,24 @@ export default function PerfilProfesional() {
             </View>
           </View>
 
-          {/* ESTADÍSTICAS */}
+          {/* ESTADÍSTICAS EN TIEMPO REAL */}
           <View style={styles.statsContainer}>
-            <StatItem icon="medal-outline" label="Calificación" value="4.8" />
+            <StatItem
+              icon="medal-outline"
+              label="Calificación"
+              value={userData?.rating ? String(userData.rating) : "0.0"} // 👈 Conectado dinámicamente
+            />
             <View style={styles.dividerVertical} />
-            <StatItem icon="briefcase-outline" label="Proyectos" value="18" />
+            <StatItem
+              icon="briefcase-outline"
+              label="Proyectos"
+              value={`${misTrabajos.length}`} // 👈 Usa la cantidad real de portafolios subidos
+            />
             <View style={styles.dividerVertical} />
             <StatItem
               icon="shield-checkmark-outline"
               label="Miembro"
-              value="2 años"
+              value="Activo"
             />
           </View>
         </View>
@@ -224,7 +274,10 @@ export default function PerfilProfesional() {
           </View>
 
           <View style={styles.portfolioActionRow}>
-            <Text style={styles.countText}>3 trabajos publicados</Text>
+            {/* Cantidad dinámica basada en los registros reales */}
+            <Text style={styles.countText}>
+              {misTrabajos.length} trabajo(s) publicado(s)
+            </Text>
             <TouchableOpacity
               style={styles.addWorkBtn}
               onPress={() => router.push("/HU-09/subirPortafolio")}
@@ -233,17 +286,29 @@ export default function PerfilProfesional() {
             </TouchableOpacity>
           </View>
 
+          {/* Render dinámico de los primeros dos trabajos en tu grilla */}
           <View style={styles.portfolioGrid}>
-            <PortfolioCard
-              title="Instalación Residencial"
-              files="2 archivos"
-              image="https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=400"
-            />
-            <PortfolioCard
-              title="Iluminación Comercial"
-              files="1 archivo"
-              image="https://images.unsplash.com/photo-1558403194-611308249627?w=400"
-            />
+            {misTrabajos.length > 0 ? (
+              misTrabajos
+                .slice(0, 2)
+                .map((trabajo) => (
+                  <PortfolioCard
+                    key={trabajo.id}
+                    title={trabajo.titulo}
+                    files="Adjunto disponible"
+                    image={trabajo.portada_url}
+                  />
+                ))
+            ) : (
+              <Text
+                style={[
+                  styles.countText,
+                  { fontStyle: "italic", paddingVertical: 10 },
+                ]}
+              >
+                Aún no has agregado trabajos a tu portafolio.
+              </Text>
+            )}
           </View>
 
           {/* BOTONES DE ACCIÓN ADICIONALES */}
@@ -267,7 +332,7 @@ export default function PerfilProfesional() {
           </View>
         </View>
 
-        {/* SECCIÓN HABILIDADES (EXTRA) */}
+        {/* SECCIÓN HABILIDADES */}
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Habilidades destacadas</Text>
           <View style={styles.skillsContainer}>
@@ -287,6 +352,8 @@ export default function PerfilProfesional() {
     </SafeAreaView>
   );
 }
+
+// ... Tus estilos se quedan exactamente iguales abajo
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bgLight },

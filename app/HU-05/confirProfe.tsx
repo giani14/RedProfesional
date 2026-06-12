@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import { FontAwesome, Ionicons, MaterialIcons } from "@expo/vector-icons";
+import * as FileSystem from "expo-file-system/legacy";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
@@ -28,7 +29,6 @@ const COLORS = {
 export default function ConfirProfeScreen() {
   const router = useRouter();
 
-  // RECIBIMOS TODOS LOS PARÁMETROS COORDINADOS (Incluyendo los del certificado)
   const {
     nombre,
     especialidad,
@@ -51,45 +51,56 @@ export default function ConfirProfeScreen() {
       } = await supabase.auth.getUser();
       if (!user) throw new Error("No se encontró una sesión activa.");
 
-      // 1. Subir el archivo al Storage Bucket si existe
-      let urlCertificadoFinal = null;
+      let urlCertificadoFinal = "";
 
       if (certificadoUri) {
-        // Transformar la ruta local en un BLOB binario compatible con Supabase Storage
-        const response = await fetch(certificadoUri as string);
-        const blob = await response.blob();
+        try {
+          // 1. Leemos el archivo en Base64 de forma segura usando la API legacy de Expo 54
+          const base64Data = await FileSystem.readAsStringAsync(
+            certificadoUri as string,
+            {
+              encoding: "base64",
+            },
+          );
 
-        // Creamos una extensión limpia o usamos la por defecto
-        const fileExt = (certificadoName as string)?.split(".").pop() || "pdf";
-        const pathArchivo = `${user.id}/certificado_${Date.now()}.${fileExt}`;
+          // 2. Convertimos el Base64 a ArrayBuffer usando la librería auxiliar
+          const { decode } = require("base64-arraybuffer");
+          const arrayBuffer = decode(base64Data);
 
-        // Subida al Storage en el Bucket 'certificados'
-        const { error: uploadError } = await supabase.storage
-          .from("certificados")
-          .upload(pathArchivo, blob, {
-            contentType:
-              (certificadoMime as string) || "application/octet-stream",
-            upsert: true,
-          });
+          const fileExt =
+            (certificadoName as string)?.split(".").pop() || "jpg";
+          const pathArchivo = `certificados/${user.id}_${Date.now()}.${fileExt}`;
 
-        if (uploadError) throw new Error(`Storage: ${uploadError.message}`);
+          // 3. Subida directa al bucket con las políticas ya arregladas
+          const { error: uploadError } = await supabase.storage
+            .from("public_assets")
+            .upload(pathArchivo, arrayBuffer, {
+              contentType: (certificadoMime as string) || "image/jpeg",
+              upsert: true,
+            });
 
-        // Obtener la URL pública del archivo recién subido
-        const { data: urlData } = supabase.storage
-          .from("certificados")
-          .getPublicUrl(pathArchivo);
+          if (uploadError) throw new Error(`Storage: ${uploadError.message}`);
 
-        if (urlData) {
-          urlCertificadoFinal = urlData.publicUrl;
+          // 4. Obtener URL pública
+          const { data: urlData } = supabase.storage
+            .from("public_assets")
+            .getPublicUrl(pathArchivo);
+
+          if (urlData) {
+            urlCertificadoFinal = urlData.publicUrl;
+          }
+        } catch (fileError: any) {
+          console.error("Error procesando archivo:", fileError);
+          throw new Error(`Fallo en Storage: ${fileError.message}`);
         }
       }
-
-      // 2. Actualizar 'perfiles' con el Rol y la Ubicación (Ciudad)
+      // 2. Actualizar la tabla 'perfiles' (Mapeo exacto de columnas)
       const { error: perfilError } = await supabase
         .from("perfiles")
         .update({
           rol: "Profesional",
           nombre_completo: nombre,
+          ubicacion: ubicacion,
           ciudad: ubicacion,
           telefono: telefono,
         })
@@ -97,34 +108,40 @@ export default function ConfirProfeScreen() {
 
       if (perfilError) throw perfilError;
 
-      // Decodificamos de manera segura el parámetro por si trae caracteres especiales
       const experienciaTextoValido = experiencia
         ? decodeURIComponent(experiencia as string)
         : "Sin experiencia";
 
-      // 3. Guardar información técnica y de verificación en 'profesionales_info'
+      // 3. Insertar/Actualizar en 'profesionales_info' (Mapeo exacto de columnas)
       const { error: profeError } = await supabase
         .from("profesionales_info")
-        .upsert({
-          id: user.id,
-          titulo_especialidad: especialidad,
-          experiencia: experienciaTextoValido,
-          biografia: descripcion,
-          aprobado: true, // Mantiene tu lógica base de aprobación inicial si aplica
-          url_certificado: urlCertificadoFinal, // Insertamos la URL de Supabase Storage
-          estado_verificacion: certificadoUri ? "Pendiente" : "No verificado", // Si envió, queda en revisión
-        });
+        .upsert(
+          {
+            profesional_id: user.id,
+            titulo_especialidad: especialidad,
+            experiencia: experienciaTextoValido,
+            descripcion: descripcion,
+            aprobado: true,
+            url_certificado: urlCertificadoFinal,
+            estado_verificacion: certificadoUri ? "Pendiente" : "No verificado",
+          },
+          { onConflict: "profesional_id" },
+        );
 
       if (profeError) throw profeError;
 
-      // 4. Éxito total
+      // 4. Éxito y Redirección pasando parámetros limpia
       Alert.alert(
         "¡Registro Completado!",
-        "Tus datos y certificados se enviaron a moderación.",
+        "Tus datos y certificados se guardaron con éxito en tu perfil profesional.",
       );
-      router.push("/HU-05/asigProfe");
+
+      router.push({
+        pathname: "/HU-05/asigProfe",
+        params: { nombre: nombre },
+      });
     } catch (error: any) {
-      console.error("Error al guardar:", error.message);
+      console.error("Error al guardar en Supabase:", error.message);
       Alert.alert(
         "Error",
         "No se pudo completar el registro: " + error.message,
@@ -134,7 +151,6 @@ export default function ConfirProfeScreen() {
     }
   };
 
-  // Componente para mostrar los datos en la tarjeta
   const InfoRow = ({ label, value, icon }: any) => (
     <View style={{ marginBottom: 15 }}>
       <View
@@ -372,7 +388,6 @@ export default function ConfirProfeScreen() {
                 }
               />
 
-              {/* Fila del estado del documento adjunto */}
               <InfoRow
                 label="Certificado Adjunto"
                 value={

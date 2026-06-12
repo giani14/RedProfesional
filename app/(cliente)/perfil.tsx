@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  Modal,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -79,6 +80,10 @@ const MenuOption = ({ icon, label, onPress, isLogout }: MenuOptionProps) => (
 
 export default function ClientePerfil() {
   const [loading, setLoading] = useState(true);
+  const [paymentModalVisible, setPaymentModalVisible] = useState(false);
+  const [helpModalVisible, setHelpModalVisible] = useState(false);
+  const [privacyModalVisible, setPrivacyModalVisible] = useState(false);
+  const [ordersModalVisible, setOrdersModalVisible] = useState(false);
   const [userData, setUserData] = useState<{
     nombre: string;
     rol: string;
@@ -197,9 +202,21 @@ export default function ClientePerfil() {
         </View>
 
         <View style={styles.statsContainer}>
-          <StatItem value="12" label="Pedidos" />
-          <StatItem value="8" label="Contratos" />
-          <StatItem value="4.9" label="Rating" />
+          <TouchableOpacity
+            style={styles.statTouchable}
+            activeOpacity={0.7}
+            onPress={() => setOrdersModalVisible(true)}
+          >
+            <StatItem value="99" label="PEDIDOS TEST" />
+          </TouchableOpacity>
+
+          <View style={styles.statTouchable}>
+            <StatItem value="8" label="Contratos" />
+          </View>
+
+          <View style={styles.statTouchable}>
+            <StatItem value="4.9" label="Rating" />
+          </View>
         </View>
 
         <View style={styles.menuContainer}>
@@ -209,11 +226,24 @@ export default function ClientePerfil() {
             label="Mi perfil"
             onPress={() => router.push("/HU-04/miPerfil")}
           />
-          <MenuOption icon="card-outline" label="Métodos de pago" />
+          <MenuOption
+            icon="card-outline"
+            label="Métodos de pago"
+            onPress={() => setPaymentModalVisible(true)}
+          />
 
           <Text style={styles.sectionTitle}>Soporte</Text>
-          <MenuOption icon="help-circle-outline" label="Centro de ayuda" />
-          <MenuOption icon="shield-checkmark-outline" label="Privacidad" />
+          <MenuOption
+            icon="help-circle-outline"
+            label="Centro de ayuda"
+            onPress={() => setHelpModalVisible(true)}
+          />
+
+          <MenuOption
+            icon="shield-checkmark-outline"
+            label="Privacidad"
+            onPress={() => setPrivacyModalVisible(true)}
+          />
 
           <View style={styles.divider} />
 
@@ -226,6 +256,172 @@ export default function ClientePerfil() {
           <Text style={styles.versionText}>Versión 1.0.4 - RedProfesional</Text>
         </View>
       </ScrollView>
+
+      <Modal
+        visible={paymentModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPaymentModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalBox}>
+            <Ionicons name="gift-outline" size={45} color={COLORS.accentGold} />
+            <Text style={styles.modalTitle}>Gratis por ahora</Text>
+            <Text style={styles.modalText}>
+              RedProfesional es gratuita por ahora. No necesitas agregar métodos
+              de pago para usar la aplicación.
+            </Text>
+
+            <TouchableOpacity
+              style={styles.modalButton}
+              onPress={() => setPaymentModalVisible(false)}
+            >
+              <Text style={styles.modalButtonText}>Entendido</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+      <Modal
+        visible={ordersModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setOrdersModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.ordersBox}>
+            <Text style={styles.modalTitle}>Mis pedidos</Text>
+
+            <ScrollView>
+              <View style={styles.orderItem}>
+                <Text style={styles.orderTitle}>
+                  Solicitud de servicio pendiente
+                </Text>
+                <Text style={styles.orderText}>Estado: En revisión</Text>
+                <Text style={styles.orderText}>Fecha: Hoy</Text>
+              </View>
+
+              <View style={styles.orderItem}>
+                <Text style={styles.orderTitle}>Servicio solicitado</Text>
+                <Text style={styles.orderText}>Estado: Aceptado</Text>
+                <Text style={styles.orderText}>Fecha: Reciente</Text>
+              </View>
+
+              <View style={styles.orderItem}>
+                <Text style={styles.orderTitle}>Pedido finalizado</Text>
+                <Text style={styles.orderText}>Estado: Completado</Text>
+                <Text style={styles.orderText}>Fecha: Anterior</Text>
+              </View>
+            </ScrollView>
+
+            <TouchableOpacity
+              style={styles.modalButton}
+              onPress={() => setOrdersModalVisible(false)}
+            >
+              <Text style={styles.modalButtonText}>Cerrar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+      {/* Modal Centro de ayuda */}
+      <Modal visible={helpModalVisible} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.helpBox}>
+            <View style={styles.helpHeader}>
+              <Text style={styles.helpLogo}>
+                Red<Text style={{ color: COLORS.accentGold }}>Profesional</Text>
+              </Text>
+              <Text style={styles.helpTitle}>Centro de ayuda</Text>
+            </View>
+
+            <ScrollView>
+              <View style={styles.chatBubble}>
+                <Text style={styles.question}>
+                  ¿Cómo funciona RedProfesional?
+                </Text>
+                <Text style={styles.answer}>
+                  Puedes buscar profesionales, enviar solicitudes y coordinar
+                  servicios desde la aplicación.
+                </Text>
+              </View>
+
+              <View style={styles.chatBubble}>
+                <Text style={styles.question}>¿La app tiene costo?</Text>
+                <Text style={styles.answer}>
+                  Por ahora RedProfesional es gratuita. No necesitas registrar
+                  métodos de pago.
+                </Text>
+              </View>
+
+              <View style={styles.chatBubble}>
+                <Text style={styles.question}>
+                  ¿Cómo contacto a un profesional?
+                </Text>
+                <Text style={styles.answer}>
+                  Desde la sección Buscar puedes elegir un profesional y
+                  enviarle una solicitud.
+                </Text>
+              </View>
+
+              <View style={styles.chatBubble}>
+                <Text style={styles.question}>¿Dónde veo mis solicitudes?</Text>
+                <Text style={styles.answer}>
+                  En la pestaña Solicitudes puedes revisar el estado de tus
+                  pedidos y respuestas.
+                </Text>
+              </View>
+            </ScrollView>
+
+            <TouchableOpacity
+              style={styles.modalButton}
+              onPress={() => setHelpModalVisible(false)}
+            >
+              <Text style={styles.modalButtonText}>Cerrar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal Privacidad */}
+      <Modal visible={privacyModalVisible} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.privacyBox}>
+            <Text style={styles.privacyTitle}>Política de privacidad</Text>
+
+            <ScrollView>
+              <Text style={styles.privacyText}>
+                RedProfesional protege la información personal de sus usuarios.
+                Al utilizar la aplicación, aceptas que tus datos sean usados
+                únicamente para permitir el funcionamiento del servicio.
+                {"\n\n"}
+                1. Datos personales: podemos almacenar nombre, correo, rol,
+                imagen de perfil y datos relacionados con solicitudes o
+                contratos.
+                {"\n\n"}
+                2. Uso de la información: la información se utiliza para
+                identificar usuarios, conectar clientes con profesionales y
+                mejorar la experiencia dentro de la aplicación.
+                {"\n\n"}
+                3. Seguridad: RedProfesional no comparte tus datos personales
+                con terceros sin autorización.
+                {"\n\n"}
+                4. Responsabilidad del usuario: cada usuario debe mantener
+                segura su cuenta y cerrar sesión cuando use dispositivos
+                compartidos.
+                {"\n\n"}
+                5. Aceptación: al continuar usando RedProfesional, aceptas estas
+                condiciones de privacidad.
+              </Text>
+            </ScrollView>
+
+            <TouchableOpacity
+              style={styles.modalButton}
+              onPress={() => setPrivacyModalVisible(false)}
+            >
+              <Text style={styles.modalButtonText}>Acepto</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -349,5 +545,133 @@ const styles = StyleSheet.create({
     color: "#9CA3AF",
     fontSize: 12,
     marginTop: 30,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 25,
+  },
+  modalBox: {
+    width: "100%",
+    backgroundColor: COLORS.white,
+    borderRadius: 18,
+    padding: 25,
+    alignItems: "center",
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: COLORS.primaryBlue,
+    marginTop: 10,
+    marginBottom: 8,
+  },
+  modalText: {
+    fontSize: 15,
+    color: COLORS.textGray,
+    textAlign: "center",
+    lineHeight: 22,
+    marginBottom: 20,
+  },
+  modalButton: {
+    backgroundColor: COLORS.accentGold,
+    paddingVertical: 12,
+    paddingHorizontal: 30,
+    borderRadius: 12,
+  },
+  modalButtonText: {
+    color: COLORS.primaryBlue,
+    fontWeight: "bold",
+    fontSize: 15,
+  },
+  statTouchable: {
+    flex: 1,
+    alignItems: "center",
+  },
+  ordersBox: {
+    width: "92%",
+    maxHeight: "80%",
+    backgroundColor: COLORS.white,
+    borderRadius: 18,
+    padding: 22,
+  },
+  orderItem: {
+    backgroundColor: COLORS.lightGray,
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 10,
+  },
+  orderTitle: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: COLORS.primaryBlue,
+    marginBottom: 6,
+  },
+  orderText: {
+    fontSize: 14,
+    color: COLORS.textGray,
+    marginBottom: 2,
+  },
+  helpBox: {
+    width: "92%",
+    maxHeight: "80%",
+    backgroundColor: "#ECE5DD",
+    borderRadius: 18,
+    padding: 18,
+  },
+  helpHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 15,
+  },
+  helpTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: COLORS.primaryBlue,
+    marginLeft: 10,
+  },
+  chatBubble: {
+    backgroundColor: COLORS.white,
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 10,
+  },
+  question: {
+    fontSize: 15,
+    fontWeight: "bold",
+    color: COLORS.primaryBlue,
+    marginBottom: 5,
+  },
+  answer: {
+    fontSize: 14,
+    color: "#374151",
+    lineHeight: 20,
+  },
+  privacyBox: {
+    width: "92%",
+    maxHeight: "82%",
+    backgroundColor: COLORS.white,
+    borderRadius: 18,
+    padding: 22,
+  },
+  privacyTitle: {
+    fontSize: 21,
+    fontWeight: "bold",
+    color: COLORS.primaryBlue,
+    textAlign: "center",
+    marginBottom: 15,
+  },
+  privacyText: {
+    fontSize: 14,
+    color: "#374151",
+    lineHeight: 22,
+    textAlign: "justify",
+  },
+  helpLogo: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: COLORS.primaryBlue,
+    marginRight: 10,
   },
 });

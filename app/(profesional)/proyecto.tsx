@@ -39,7 +39,7 @@ const ProyectoCard = ({
   cliente,
   fecha,
   estado,
-  onPress, // Extraemos onPress
+  onPress,
 }: ProyectoItemProps) => {
   const getStatusStyle = () => {
     switch (estado) {
@@ -55,7 +55,12 @@ const ProyectoCard = ({
   const statusStyle = getStatusStyle();
 
   return (
-    <TouchableOpacity style={styles.projectCard} activeOpacity={0.7}>
+    // Agregamos el onPress a la tarjeta completa para que responda en toda su superficie
+    <TouchableOpacity
+      style={styles.projectCard}
+      activeOpacity={0.7}
+      onPress={onPress}
+    >
       <View style={styles.cardHeader}>
         <Text style={styles.projectTitle} numberOfLines={1}>
           {titulo}
@@ -78,10 +83,11 @@ const ProyectoCard = ({
         </View>
       </View>
 
-      <TouchableOpacity style={styles.detailButton} onPress={onPress}>
+      {/* Transformamos el contenedor inferior en un View normal, manteniendo la estética visual */}
+      <View style={styles.detailButton}>
         <Text style={styles.detailButtonText}>Ver detalles</Text>
         <Ionicons name="chevron-forward" size={16} color={COLORS.primaryBlue} />
-      </TouchableOpacity>
+      </View>
     </TouchableOpacity>
   );
 };

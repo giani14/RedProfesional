@@ -2,7 +2,7 @@ import { supabase } from "@/lib/supabase";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import DateTimePicker, {
   DateTimePickerEvent,
-} from "@react-native-community/datetimepicker"; // <-- IMPORTE EL PICKER
+} from "@react-native-community/datetimepicker";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
@@ -30,10 +30,22 @@ const COLORS = {
   inputBorder: "#E5E7EB",
 };
 
+// Helper para obtener iniciales en caso de que no tenga avatar
+const obtenerIniciales = (nombre: string) => {
+  if (!nombre) return "??";
+  const partes = nombre.trim().split(/\s+/);
+  if (partes.length >= 2) {
+    return `${partes[0][0]}${partes[1][0]}`.toUpperCase();
+  }
+  return partes[0].substring(0, 2).toUpperCase();
+};
+
 export default function EnviarSolicitud() {
   const router = useRouter();
   const { id } = useLocalSearchParams();
   const [profe, setProfe] = useState<any>(null);
+  const [infoTecnica, setInfoTecnica] = useState<any>(null);
+  const [rating, setRating] = useState({ promedio: 5.0, total: 0 });
   const [loading, setLoading] = useState(true);
 
   // Estados del formulario
@@ -41,7 +53,7 @@ export default function EnviarSolicitud() {
   const [descripcion, setDescripcion] = useState("");
   const [presupuesto, setPresupuesto] = useState("");
 
-  // NUEVOS ESTADOS PARA MANEJAR EL CALENDARIO
+  // Estados para manejar el calendario
   const [fechaObjeto, setFechaObjeto] = useState<Date | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
 
@@ -52,14 +64,45 @@ export default function EnviarSolicitud() {
   const cargarDatosProfe = async () => {
     try {
       setLoading(true);
+      // Query corregida para traer ratings reales
       const { data, error } = await supabase
         .from("perfiles")
-        .select("*, profesionales_info(*)")
+        .select(
+          `
+          *, 
+          profesionales_info(
+            *,
+            profesionales_rating(
+              promedio,
+              total_reviews
+            )
+          )
+        `,
+        )
         .eq("id", id)
         .single();
 
       if (error) throw error;
+
       setProfe(data);
+
+      // Manejo seguro del objeto anidado
+      const info = Array.isArray(data?.profesionales_info)
+        ? data?.profesionales_info[0]
+        : data?.profesionales_info;
+
+      setInfoTecnica(info);
+
+      if (info?.profesionales_rating) {
+        const rData = Array.isArray(info.profesionales_rating)
+          ? info.profesionales_rating[0]
+          : info.profesionales_rating;
+
+        setRating({
+          promedio: rData?.promedio ?? 5.0,
+          total: rData?.total_reviews ?? 0,
+        });
+      }
     } catch (err) {
       console.error("Error cargando profe:", err);
     } finally {
@@ -67,15 +110,13 @@ export default function EnviarSolicitud() {
     }
   };
 
-  // MANEJADOR AL SELECCIONAR LA FECHA
   const onFechaChange = (event: DateTimePickerEvent, selectedDate?: Date) => {
-    setShowDatePicker(Platform.OS === "ios"); // En iOS se mantiene abierto, en Android se cierra
+    setShowDatePicker(Platform.OS === "ios");
     if (selectedDate) {
       setFechaObjeto(selectedDate);
     }
   };
 
-  // FORMATEADOR DE FECHA EN TEXTO (DD/MM/AAAA)
   const formatFechaTexto = (date: Date | null) => {
     if (!date) return "Selecciona una fecha";
     const dia = String(date.getDate()).padStart(2, "0");
@@ -95,13 +136,13 @@ export default function EnviarSolicitud() {
       params: {
         id: id,
         nombre: profe?.nombre_completo,
-        especialidad: profe?.profesionales_info?.titulo_especialidad,
+        especialidad: infoTecnica?.titulo_especialidad || "Especialista",
         ciudad: profe?.ciudad || "Cochabamba",
-        avatar: profe?.avatar_url,
+        avatar: profe?.avatar_url || "",
         servicio: servicio,
         descripcion: descripcion,
         presupuesto: presupuesto,
-        fecha: formatFechaTexto(fechaObjeto), // Pasa la fecha formateada como string
+        fecha: fechaObjeto ? fechaObjeto.toISOString() : "", // Enviamos formato ISO estándar para base de datos
       },
     });
   };
@@ -142,16 +183,20 @@ export default function EnviarSolicitud() {
         {/* TARJETA DEL PROFESIONAL SELECCIONADO */}
         <Text style={styles.sectionLabel}>Profesional</Text>
         <View style={styles.profeCard}>
-          <Image
-            source={{
-              uri: profe?.avatar_url || "https://via.placeholder.com/150",
-            }}
-            style={styles.avatar}
-          />
+          {profe?.avatar_url ? (
+            <Image source={{ uri: profe.avatar_url }} style={styles.avatar} />
+          ) : (
+            <View style={styles.avatarIniciales}>
+              <Text style={styles.textoIniciales}>
+                {obtenerIniciales(profe?.nombre_completo)}
+              </Text>
+            </View>
+          )}
+
           <View style={styles.profeInfo}>
             <Text style={styles.profeName}>{profe?.nombre_completo}</Text>
             <Text style={styles.profeTitle}>
-              {profe?.profesionales_info?.titulo_especialidad}
+              {infoTecnica?.titulo_especialidad || "Especialista General"}
             </Text>
             <View style={styles.row}>
               <Ionicons name="location" size={14} color={COLORS.primaryBlue} />
@@ -162,11 +207,12 @@ export default function EnviarSolicitud() {
             <View style={styles.row}>
               <Ionicons name="star" size={14} color={COLORS.accentGold} />
               <Text style={styles.ratingText}>
-                4.8{" "}
+                {rating.total > 0 ? rating.promedio.toFixed(1) : "5.0"}{" "}
                 <Text
                   style={{ fontWeight: "normal", color: COLORS.textSecondary }}
                 >
-                  (32)
+                  ({rating.total} {rating.total === 1 ? "opinión" : "opiniones"}
+                  )
                 </Text>
               </Text>
             </View>
@@ -223,7 +269,7 @@ export default function EnviarSolicitud() {
           </View>
         </View>
 
-        {/* CAMPO DE FECHA MODIFICADO CON SELECCIONADOR INTERACTIVO */}
+        {/* CALENDARIO INTERACTIVO */}
         <View style={styles.formGroup}>
           <Text style={styles.inputLabel}>
             Fecha estimada <Text style={styles.optional}>(opcional)</Text>
@@ -246,14 +292,13 @@ export default function EnviarSolicitud() {
           </TouchableOpacity>
         </View>
 
-        {/* COMPONENTE EXPO DATETIMEPICKER MODAL */}
         {showDatePicker && (
           <DateTimePicker
             value={fechaObjeto || new Date()}
             mode="date"
             display="default"
             onChange={onFechaChange}
-            minimumDate={new Date()} // <-- ESTO BLOQUEA LAS FECHAS ANTERIORES A HOY
+            minimumDate={new Date()}
           />
         )}
 
@@ -272,6 +317,7 @@ const styles = StyleSheet.create({
   headerContent: {
     flexDirection: "row",
     alignItems: "center",
+
     justifyContent: "space-between",
     paddingHorizontal: 16,
   },
@@ -289,8 +335,6 @@ const styles = StyleSheet.create({
     color: COLORS.primaryBlue,
     marginBottom: 10,
   },
-
-  // Tarjeta Profe
   profeCard: {
     flexDirection: "row",
     backgroundColor: "white",
@@ -302,14 +346,21 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   avatar: { width: 80, height: 80, borderRadius: 40 },
+  avatarIniciales: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: COLORS.primaryBlue,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  textoIniciales: { color: "#FFFFFF", fontSize: 26, fontWeight: "bold" },
   profeInfo: { marginLeft: 15, flex: 1 },
   profeName: { fontSize: 18, fontWeight: "bold", color: COLORS.primaryBlue },
   profeTitle: { fontSize: 14, color: COLORS.textSecondary, marginVertical: 2 },
   row: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 2 },
   locText: { fontSize: 13, color: COLORS.textSecondary },
   ratingText: { fontSize: 13, fontWeight: "bold", color: COLORS.textMain },
-
-  // Formulario
   formGroup: { marginBottom: 20 },
   inputLabel: { fontWeight: "bold", color: COLORS.textMain, marginBottom: 8 },
   optional: { fontWeight: "normal", color: COLORS.textSecondary },
@@ -340,7 +391,6 @@ const styles = StyleSheet.create({
     marginTop: 5,
   },
   currency: { fontWeight: "bold", color: COLORS.textMain },
-
   btnContinue: {
     backgroundColor: COLORS.primaryBlue,
     paddingVertical: 18,

@@ -29,6 +29,8 @@ const COLORS = {
   rejectedBg: "#FEE2E2",
   rejectedText: "#991B1B",
 };
+
+// 1. Ampliamos el diccionario con los nuevos estados del sistema anti-estafas
 const estadoStyles: Record<
   string,
   { bg: string; color: string; label: string }
@@ -38,10 +40,9 @@ const estadoStyles: Record<
     color: COLORS.pendingText,
     label: "Pendiente",
   },
-  // Añadimos este bloque optimizado:
   revisando: {
-    bg: "#E0F2FE", // Azul claro de fondo
-    color: "#0369A1", // Azul oscuro para el texto
+    bg: "#E0F2FE",
+    color: "#0369A1",
     label: "Revisando",
   },
   en_proceso: { bg: "#DBEAFE", color: "#1E40AF", label: "En Proceso" },
@@ -55,12 +56,23 @@ const estadoStyles: Record<
     color: COLORS.rejectedText,
     label: "Rechazada",
   },
+  entregado: {
+    bg: "#FEF3C7", // Fondo ámbar / alerta controlada
+    color: "#D97706", // Naranja oscuro: Requiere atención del cliente
+    label: "Trabajo Entregado",
+  },
   finalizado: {
     bg: COLORS.acceptedBg,
     color: COLORS.acceptedText,
-    label: "Finalizado",
+    label: "Finalizado / Pagado",
+  },
+  disputa: {
+    bg: "#FEE2E2",
+    color: "#DC2626",
+    label: "En Disputa ⚠️",
   },
 };
+
 export default function PedidosScreen() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState("Todas");
@@ -77,6 +89,7 @@ export default function PedidosScreen() {
       } = await supabase.auth.getUser();
       if (!user) return;
 
+      // 2. Añadimos la columna 'evidencia_url' para pasarla por parámetro al detalle
       let query = supabase
         .from("solicitudes_servicio")
         .select(
@@ -86,18 +99,20 @@ export default function PedidosScreen() {
           estado, 
           fecha_solicitud,
           profesional_id,
+          evidencia_url,
           perfiles!profesional_id (nombre_completo)
         `,
         )
         .eq("cliente_id", user.id);
 
-      // Lógica de filtrado mejorada
+      // Lógica de filtrado adaptada al nuevo ecosistema
       if (activeTab === "Pendientes") {
-        // Mostramos tanto las nuevas como las que ya se están revisando
         query = query.in("estado", ["pendiente", "revisando"]);
-      } else if (activeTab !== "Todas") {
-        const estadoFiltro = activeTab.toLowerCase().replace("s", "");
-        query = query.eq("estado", estadoFiltro);
+      } else if (activeTab === "Aceptadas") {
+        // En aceptadas también incluimos lo que está en progreso o ya entregado
+        query = query.in("estado", ["aceptada", "en_proceso", "entregado"]);
+      } else if (activeTab === "Rechazadas") {
+        query = query.in("estado", ["rechazada", "disputa"]);
       }
 
       const { data, error } = await query.order("fecha_solicitud", {
@@ -117,6 +132,7 @@ export default function PedidosScreen() {
   useEffect(() => {
     fetchSolicitudes();
   }, [activeTab]);
+
   const onRefresh = () => {
     setRefreshing(true);
     fetchSolicitudes();
@@ -145,16 +161,7 @@ export default function PedidosScreen() {
     );
   };
 
-  const getStatusStyle = (status: string) => {
-    const s = status.toLowerCase();
-    if (estadoStyles[s]) {
-      return { bg: estadoStyles[s].bg, text: estadoStyles[s].color };
-    }
-    return { bg: COLORS.pendingBg, text: COLORS.pendingText };
-  };
-
   const renderItem = ({ item }: any) => {
-    // Usamos el diccionario global que ya tienes definido arriba para los colores
     const configEstado =
       estadoStyles[item.estado?.toLowerCase()] || estadoStyles["pendiente"];
 
@@ -164,7 +171,7 @@ export default function PedidosScreen() {
         onPress={() =>
           router.push({
             pathname: "/HU-18/solicitudDetalle",
-            params: { id: item.id },
+            params: { id: item.id }, // Enviamos el ID para resolver los botones allá
           })
         }
         onLongPress={() => handleDelete(item.id)}
@@ -229,7 +236,6 @@ export default function PedidosScreen() {
         backgroundColor={COLORS.primaryBlue}
       />
 
-      {/* Header Estilo Nuevo */}
       <View style={styles.blueHeader}>
         <SafeAreaView edges={["top"]}>
           <View style={styles.headerContent}>
@@ -250,7 +256,6 @@ export default function PedidosScreen() {
       <View style={styles.contentBody}>
         <Text style={styles.sectionTitle}>Mis solicitudes</Text>
 
-        {/* Chips de Filtro */}
         <View>
           <ScrollView
             horizontal
@@ -289,10 +294,7 @@ export default function PedidosScreen() {
             keyExtractor={(item) => item.id}
             contentContainerStyle={styles.listPadding}
             refreshControl={
-              <RefreshControl
-                refreshing={refreshing}
-                onRefresh={fetchSolicitudes}
-              />
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
             }
             ListEmptyComponent={
               <Text style={styles.emptyText}>
@@ -316,7 +318,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   headerTitle: { color: "white", fontSize: 20, fontWeight: "bold" },
-
   contentBody: { flex: 1, paddingTop: 20 },
   sectionTitle: {
     fontSize: 24,
@@ -325,8 +326,6 @@ const styles = StyleSheet.create({
     marginLeft: 20,
     marginBottom: 20,
   },
-
-  // Estilo Chips
   chipsContainer: {
     paddingHorizontal: 20,
     gap: 10,
@@ -347,8 +346,6 @@ const styles = StyleSheet.create({
   },
   chipText: { color: COLORS.textSecondary, fontWeight: "500" },
   activeChipText: { color: COLORS.white },
-
-  // Tarjetas según la nueva imagen
   listPadding: { paddingHorizontal: 20, paddingBottom: 30 },
   card: {
     backgroundColor: COLORS.white,
@@ -357,7 +354,6 @@ const styles = StyleSheet.create({
     marginBottom: 15,
     borderWidth: 1,
     borderColor: "#F3F4F6",
-    // Sombra suave
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
@@ -381,10 +377,8 @@ const styles = StyleSheet.create({
   },
   profeName: { fontSize: 17, fontWeight: "bold", color: COLORS.textMain },
   profeService: { fontSize: 14, color: COLORS.textSecondary, marginTop: 4 },
-
   statusBadge: { paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12 },
   statusText: { fontSize: 12, fontWeight: "bold" },
-
   cardFooter: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -392,7 +386,6 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   footerDate: { fontSize: 13, color: COLORS.textSecondary, fontWeight: "500" },
-
   emptyText: {
     textAlign: "center",
     marginTop: 40,
@@ -402,7 +395,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: 2,
     right: 2,
-    backgroundColor: "#EAB308", // Dorado como tus colores principales
+    backgroundColor: "#EAB308",
     width: 8,
     height: 8,
     borderRadius: 4,

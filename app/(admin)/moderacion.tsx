@@ -17,12 +17,11 @@ import {
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
-// Interfaz adaptada para soportar los datos de reportes
 interface ProfesionalModeracion {
-  id: string; // id del usuario o del reporte
-  profesional_id?: string; // ID real del profesional si viene de un reporte
+  id: string; // ID único para el key (profesional_id o reporte_id)
+  profesional_id: string; // ID real del usuario profesional
   titulo_especialidad: string;
-  biografia: string;
+  descripcion: string; // Cambiado de 'biografia' a 'descripcion' para coincidir con tus tablas
   url_certificado: string;
   estado_verificacion:
     | "No verificado"
@@ -34,7 +33,7 @@ interface ProfesionalModeracion {
     telefono: string;
     ciudad: string;
   } | null;
-  // ---- NUEVOS CAMPOS PARA LA PESTAÑA REPORTADOS ----
+  // ---- CAMPOS PARA LA PESTAÑA REPORTADOS ----
   reporte_id?: string;
   motivo_reporte?: string;
   descripcion_reporte?: string;
@@ -43,7 +42,7 @@ interface ProfesionalModeracion {
 
 export default function ModeracionScreen() {
   const [filtro, setFiltro] = useState<
-    "Pendiente" | "Rechazado" | "Verificado"
+    "Pendiente" | "Reportados" | "Verificado"
   >("Pendiente");
   const [items, setItems] = useState<ProfesionalModeracion[]>([]);
   const [loading, setLoading] = useState(true);
@@ -63,7 +62,7 @@ export default function ModeracionScreen() {
     fetchContadores();
   }, [filtro]);
 
-  // Obtener los contadores dinámicos incluyendo la cantidad de reportes reales
+  // Obtener los contadores dinámicos desde Supabase
   async function fetchContadores() {
     try {
       const { count: pend } = await supabase
@@ -71,7 +70,6 @@ export default function ModeracionScreen() {
         .select("*", { count: "exact", head: true })
         .in("estado_verificacion", ["Pendiente", "No verificado"]);
 
-      // CONTADOR REAL: Cuenta cuántos registros activos hay en la tabla de reportes con estado pendiente
       const { count: rep } = await supabase
         .from("reportes")
         .select("*", { count: "exact", head: true })
@@ -97,7 +95,7 @@ export default function ModeracionScreen() {
     try {
       setLoading(true);
 
-      if (filtro === "Rechazado") {
+      if (filtro === "Reportados") {
         // 1. Traemos los reportes pendientes de la base de datos
         const { data: reportesData, error: reportesError } = await supabase
           .from("reportes")
@@ -111,10 +109,9 @@ export default function ModeracionScreen() {
           return;
         }
 
-        // 2. Extraemos los IDs de los denunciados
         const denunciadosIds = reportesData.map((rep) => rep.denunciado_id);
 
-        // 3. Traemos los perfiles mapeados
+        // 2. Traemos los perfiles personales mapeados
         const { data: perfilesData, error: perfilesError } = await supabase
           .from("perfiles")
           .select("id, nombre_completo, telefono, ciudad")
@@ -122,45 +119,40 @@ export default function ModeracionScreen() {
 
         if (perfilesError) throw perfilesError;
 
-        // 4. Traemos la info profesional buscando por la columna 'profesional_id' (CORREGIDO DE RAÍZ)
+        // 3. Traemos la info profesional usando 'profesional_id'
         const { data: profesionalesData, error: profesionalesError } =
           await supabase
             .from("profesionales_info")
             .select(
-              "id, profesional_id, titulo_especialidad, biografia, url_certificado, estado_verificacion",
+              "profesional_id, titulo_especialidad, descripcion, url_certificado, estado_verificacion",
             )
             .in("profesional_id", denunciadosIds);
 
         if (profesionalesError) throw profesionalesError;
 
-        console.log("DEBUG REPORTES:", reportesData);
-        console.log("DEBUG PERFILES:", perfilesData);
-        console.log("DEBUG PROFESIONALES:", profesionalesData);
-
-        // 5. Armamos el objeto final asegurando que no se rompa si faltan datos parciales
+        // 4. Mapeo estructural y blindado
         const mappedReports: ProfesionalModeracion[] = reportesData.map(
           (rep) => {
             const perfil = perfilesData?.find(
               (p) => p.id === rep.denunciado_id,
             );
-            // Buscamos la info profesional correspondiente por 'profesional_id'
             const prof = profesionalesData?.find(
               (p) => p.profesional_id === rep.denunciado_id,
             );
 
             return {
-              id: rep.id, // ID del reporte para el key de la FlatList
+              id: rep.id,
               profesional_id: rep.denunciado_id,
               titulo_especialidad:
                 prof?.titulo_especialidad || "Especialidad no definida",
-              biografia: prof?.biografia || "Sin biografía",
+              descripcion: prof?.descripcion || "Sin descripción",
               url_certificado: prof?.url_certificado || "",
               estado_verificacion:
                 (prof?.estado_verificacion as any) || "Rechazado",
               perfiles: {
                 nombre_completo: perfil?.nombre_completo || "Usuario reportado",
                 telefono: perfil?.telefono || "S/T",
-                ciudad: (perfil as any)?.ciudad || "No especificada",
+                ciudad: perfil?.ciudad || "No especificada",
               },
               reporte_id: rep.id,
               motivo_reporte: rep.motivo,
@@ -172,11 +164,11 @@ export default function ModeracionScreen() {
 
         setItems(mappedReports);
       } else {
-        // --- SECCIÓN PENDIENTES Y APROBADOS (Lógica limpia original) ---
+        // --- SECCIÓN PENDIENTES Y APROBADOS ---
         let query = supabase.from("profesionales_info").select(`
-          id,
+          profesional_id,
           titulo_especialidad,
-          biografia,
+          descripcion,
           url_certificado,
           estado_verificacion,
           perfiles (
@@ -197,7 +189,19 @@ export default function ModeracionScreen() {
 
         const { data, error } = await query;
         if (error) throw error;
-        if (data) setItems(data as unknown as ProfesionalModeracion[]);
+
+        if (data) {
+          const mappedData: ProfesionalModeracion[] = data.map((item: any) => ({
+            id: item.profesional_id,
+            profesional_id: item.profesional_id,
+            titulo_especialidad: item.titulo_especialidad,
+            descripcion: item.descripcion || "Sin descripción",
+            url_certificado: item.url_certificado || "",
+            estado_verificacion: item.estado_verificacion,
+            perfiles: item.perfiles,
+          }));
+          setItems(mappedData);
+        }
       }
     } catch (error: any) {
       console.error("Error cargando moderación:", error.message);
@@ -207,27 +211,27 @@ export default function ModeracionScreen() {
     }
   }
 
-  // Resolver o sancionar la cuenta desde el panel (CORREGIDO)
+  // Resolver o sancionar la cuenta impactando directamente en las tablas correspondientes
   async function handleCambiarEstado(
-    id: string,
+    profesionalId: string,
     nuevoEstado: "Verificado" | "Rechazado",
+    esDescarteReporte = false,
   ) {
     try {
       setActionLoading(true);
 
-      if (filtro === "Rechazado" && selectedProfe?.reporte_id) {
-        // Si el admin decide Sancionar desde la pestaña de Reportados:
-        if (nuevoEstado === "Rechazado") {
-          // Cambiamos el estado del profesional a Rechazado en profesionales_info usando su columna correcta
+      if (filtro === "Reportados" && selectedProfe?.reporte_id) {
+        if (!esDescarteReporte) {
+          // Si el Admin decide SANCTIONAR, cambiamos el estado del profesional en profesionales_info
           const { error: profError } = await supabase
             .from("profesionales_info")
             .update({ estado_verificacion: "Rechazado" })
-            .eq("profesional_id", selectedProfe.profesional_id);
+            .eq("profesional_id", profesionalId);
 
           if (profError) throw profError;
         }
 
-        // Tanto si sancionas como si descartas, el reporte se marca como resuelto para limpiarlo del feed
+        // En ambos casos (Sancionar o Descartar), el reporte se marca "resuelto" para limpiarlo del feed
         const { error: repError } = await supabase
           .from("reportes")
           .update({ estado: "resuelto" })
@@ -237,16 +241,16 @@ export default function ModeracionScreen() {
 
         Alert.alert(
           "Éxito",
-          nuevoEstado === "Rechazado"
-            ? "El profesional fue sancionado."
-            : "El reporte fue descartado.",
+          esDescarteReporte
+            ? "El reporte fue descartado."
+            : "El profesional fue sancionado.",
         );
       } else {
-        // Comportamiento normal para flujos de Aprobación/Rechazo del flujo estándar
+        // Flujo estándar de Aprobación/Rechazo de cuentas nuevas usando 'profesional_id'
         const { error } = await supabase
           .from("profesionales_info")
           .update({ estado_verificacion: nuevoEstado })
-          .eq("id", id);
+          .eq("profesional_id", profesionalId);
 
         if (error) throw error;
         Alert.alert("Éxito", `El perfil ha sido marcado como: ${nuevoEstado}`);
@@ -379,20 +383,20 @@ export default function ModeracionScreen() {
         <TouchableOpacity
           style={[
             styles.filterTab,
-            filtro === "Rechazado" && styles.filterTabActive,
+            filtro === "Reportados" && styles.filterTabActive,
           ]}
-          onPress={() => setFiltro("Rechazado")}
+          onPress={() => setFiltro("Reportados")}
         >
           <Text
             style={[
               styles.filterTabText,
-              filtro === "Rechazado" && styles.filterTabTextActive,
+              filtro === "Reportados" && styles.filterTabTextActive,
             ]}
           >
             Reportados{" "}
             <Text
               style={
-                filtro === "Rechazado"
+                filtro === "Reportados"
                   ? styles.badgeCount
                   : styles.badgeCountGray
               }
@@ -429,7 +433,7 @@ export default function ModeracionScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Lista */}
+      {/* Lista Principal */}
       {loading ? (
         <ActivityIndicator
           size="large"
@@ -440,7 +444,10 @@ export default function ModeracionScreen() {
         <FlatList
           data={items}
           renderItem={renderItem}
-          keyExtractor={(item) => item.id}
+          // Combina el id del item con su posición en el arreglo para asegurar unicidad absoluta
+          keyExtractor={(item, index) =>
+            item.id ? `${item.id}-${index}` : `fallback-key-${index}`
+          }
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
@@ -476,7 +483,7 @@ export default function ModeracionScreen() {
                 style={{ padding: 24 }}
                 showsVerticalScrollIndicator={false}
               >
-                <Text style={styles.modalLabel}>Profesional Acusado:</Text>
+                <Text style={styles.modalLabel}>Profesional Reclamado:</Text>
                 <Text style={styles.modalValue}>
                   {selectedProfe.perfiles?.nombre_completo}
                 </Text>
@@ -516,7 +523,11 @@ export default function ModeracionScreen() {
                           { backgroundColor: "#6B7280" },
                         ]}
                         onPress={() =>
-                          handleCambiarEstado(selectedProfe.id, "Verificado")
+                          handleCambiarEstado(
+                            selectedProfe.profesional_id,
+                            "Verificado",
+                            true,
+                          )
                         }
                         disabled={actionLoading}
                       >
@@ -529,7 +540,11 @@ export default function ModeracionScreen() {
                           { backgroundColor: "#EF4444" },
                         ]}
                         onPress={() =>
-                          handleCambiarEstado(selectedProfe.id, "Rechazado")
+                          handleCambiarEstado(
+                            selectedProfe.profesional_id,
+                            "Rechazado",
+                            false,
+                          )
                         }
                         disabled={actionLoading}
                       >
@@ -545,9 +560,11 @@ export default function ModeracionScreen() {
                       {selectedProfe.titulo_especialidad}
                     </Text>
 
-                    <Text style={styles.modalLabel}>Biografía:</Text>
+                    <Text style={styles.modalLabel}>
+                      Descripción Profesional:
+                    </Text>
                     <Text style={styles.modalBio}>
-                      "{selectedProfe.biografia || "Sin biografía"}"
+                      "{selectedProfe.descripcion || "Sin descripción"}"
                     </Text>
 
                     <TouchableOpacity
@@ -574,7 +591,10 @@ export default function ModeracionScreen() {
                             { backgroundColor: "#EF4444" },
                           ]}
                           onPress={() =>
-                            handleCambiarEstado(selectedProfe.id, "Rechazado")
+                            handleCambiarEstado(
+                              selectedProfe.profesional_id,
+                              "Rechazado",
+                            )
                           }
                           disabled={actionLoading}
                         >
@@ -587,7 +607,10 @@ export default function ModeracionScreen() {
                             { backgroundColor: "#10B981" },
                           ]}
                           onPress={() =>
-                            handleCambiarEstado(selectedProfe.id, "Verificado")
+                            handleCambiarEstado(
+                              selectedProfe.profesional_id,
+                              "Verificado",
+                            )
                           }
                           disabled={actionLoading}
                         >
@@ -614,7 +637,6 @@ export default function ModeracionScreen() {
     </View>
   );
 }
-
 const styles = StyleSheet.create({
   mainContainer: { flex: 1, backgroundColor: "#F9FAFB", paddingHorizontal: 16 },
   mainTitle: {

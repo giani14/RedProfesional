@@ -33,10 +33,13 @@ const COLORS = {
 
 type EstadoSolicitud =
   | "pendiente"
+  | "revisando"
   | "aceptada"
-  | "rechazada"
   | "en_proceso"
-  | "finalizado";
+  | "entregado"
+  | "finalizado"
+  | "rechazada"
+  | "disputa";
 
 interface Solicitud {
   id: string;
@@ -52,6 +55,7 @@ interface Solicitud {
 const FILTROS = ["Todas", "Pendientes", "Aceptadas", "Rechazadas"] as const;
 type Filtro = (typeof FILTROS)[number];
 
+// 1. Ampliamos el diccionario con los nuevos estados del sistema de seguridad
 const estadoStyles: Record<
   string,
   { bg: string; color: string; label: string }
@@ -61,27 +65,40 @@ const estadoStyles: Record<
     color: COLORS.pendingText,
     label: "Pendiente",
   },
-  // Añadimos este bloque optimizado:
   revisando: {
-    bg: "#E0F2FE", // Azul claro de fondo
-    color: "#0369A1", // Azul oscuro para el texto
+    bg: "#E0F2FE", // Azul claro
+    color: "#0369A1",
     label: "Revisando",
   },
-  en_proceso: { bg: "#DBEAFE", color: "#1E40AF", label: "En Proceso" },
+  en_proceso: {
+    bg: "#DBEAFE",
+    color: "#1E40AF",
+    label: "En Proceso",
+  },
   aceptada: {
     bg: COLORS.acceptedBg,
     color: COLORS.acceptedText,
     label: "Aceptada",
+  },
+  entregado: {
+    bg: "#FEF3C7", // Fondo ámbar
+    color: "#D97706",
+    label: "Entregado",
+  },
+  finalizado: {
+    bg: COLORS.acceptedBg,
+    color: COLORS.acceptedText,
+    label: "Finalizado",
   },
   rechazada: {
     bg: COLORS.rejectedBg,
     color: COLORS.rejectedText,
     label: "Rechazada",
   },
-  finalizado: {
-    bg: COLORS.acceptedBg,
-    color: COLORS.acceptedText,
-    label: "Finalizado",
+  disputa: {
+    bg: "#FEE2E2", // Rojo suave de alerta
+    color: "#DC2626",
+    label: "En Disputa ⚠️",
   },
 };
 
@@ -163,27 +180,37 @@ export default function SolicitudesProfesional() {
   const [isLoading, setIsLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
+  // 2. Corregimos y optimizamos el hook de filtrado
   const solicitudesMostrar = useMemo(() => {
     if (filtroActivo === "Todas") return items;
 
     if (filtroActivo === "Pendientes") {
-      // Incluimos tanto 'pendiente' como 'revisando' para que no desaparezcan de la vista
       return items.filter(
         (s) =>
           s.estado?.toLowerCase() === "pendiente" ||
           s.estado?.toLowerCase() === "revisando",
       );
     }
-    if (filtroActivo === "Rechazadas") {
-      return items.filter((s) => s.estado?.toLowerCase() === "rechazada");
+
+    if (filtroActivo === "Aceptadas") {
+      // Incluye contratos activos, entregados a revisión o ya finalizados exitosamente
+      return items.filter((s) =>
+        ["aceptada", "en_proceso", "entregado", "finalizado"].includes(
+          s.estado?.toLowerCase(),
+        ),
+      );
     }
 
-    const mapa: Record<string, string> = {
-      Aceptadas: "aceptada", // O "en_proceso" según tu lógica
-      Rechazadas: "rechazada",
-    };
+    if (filtroActivo === "Rechazadas") {
+      // Si está en disputa o rechazada, se agrupan en esta sección de incidencias/cierres
+      return items.filter(
+        (s) =>
+          s.estado?.toLowerCase() === "rechazada" ||
+          s.estado?.toLowerCase() === "disputa",
+      );
+    }
 
-    return items.filter((s) => s.estado?.toLowerCase() === mapa[filtroActivo]);
+    return items;
   }, [filtroActivo, items]);
 
   useFocusEffect(
@@ -200,7 +227,6 @@ export default function SolicitudesProfesional() {
       } = await supabase.auth.getUser();
       if (!user) return;
 
-      // FILTRO DE SEGURIDAD: Solo solicitudes dirigidas a MI ID como profesional
       const { data, error } = await supabase
         .from("solicitudes_servicio")
         .select(
@@ -212,7 +238,7 @@ export default function SolicitudesProfesional() {
           perfiles:cliente_id (nombre_completo, avatar_url)
         `,
         )
-        .eq("profesional_id", user.id) // <--- Seguridad: Solo lo que me corresponde
+        .eq("profesional_id", user.id)
         .order("fecha_solicitud", { ascending: false });
 
       if (error) throw error;
@@ -234,7 +260,6 @@ export default function SolicitudesProfesional() {
     <SafeAreaView style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
 
-      {/* HEADER AZUL (Igual a tu diseño) */}
       <View style={styles.customHeader}>
         <TouchableOpacity>
           <Ionicons name="menu-outline" size={28} color="white" />
@@ -296,7 +321,6 @@ export default function SolicitudesProfesional() {
               />
             )}
             contentContainerStyle={styles.listContent}
-            // IMPLEMENTACIÓN DE RECARGA AL ARRASTRAR
             refreshControl={
               <RefreshControl
                 refreshing={refreshing}
@@ -306,7 +330,7 @@ export default function SolicitudesProfesional() {
             }
             ListEmptyComponent={
               <Text style={styles.emptyText}>
-                No tienes solicitudes pendientes.
+                No tienes solicitudes para mostrar.
               </Text>
             }
           />

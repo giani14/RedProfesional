@@ -22,7 +22,7 @@ export default function ProfesionalLayout() {
           shadowRadius: 10,
         },
         tabBarLabelStyle: {
-          fontSize: 11,
+          fontSize: 10,
           fontWeight: "600",
         },
       }}
@@ -156,6 +156,18 @@ export default function ProfesionalLayout() {
       {/* Ocultamos la carpeta HU-18 de la barra inferior */}
       <Tabs.Screen
         name="servicioFinalizado"
+        options={{
+          href: null, // <--- Esto hace que desaparezca de la barra de navegación
+        }}
+      />
+      <Tabs.Screen
+        name="centroDeAyuda"
+        options={{
+          href: null, // <--- Esto hace que desaparezca de la barra de navegación
+        }}
+      />
+      <Tabs.Screen
+        name="privacidad"
         options={{
           href: null, // <--- Esto hace que desaparezca de la barra de navegación
         }}

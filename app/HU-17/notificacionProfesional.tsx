@@ -3,14 +3,14 @@ import { Ionicons } from "@expo/vector-icons";
 import { Stack, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
-  FlatList,
-  RefreshControl,
-  SafeAreaView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    FlatList,
+    RefreshControl,
+    SafeAreaView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 
 const COLORS = {
@@ -28,10 +28,10 @@ interface Notificacion {
   mensaje: string;
   created_at: string;
   leido: boolean;
-  solicitud_id?: string; // Columna opcional pero recomendada para la navegación de HU-18
+  solicitud_id?: string;
 }
 
-export default function NotificacionCliente() {
+export default function NotificacionProfesional() {
   const router = useRouter();
   const [notificaciones, setNotificaciones] = useState<Notificacion[]>([]);
   const [loading, setLoading] = useState(true);
@@ -58,7 +58,10 @@ export default function NotificacionCliente() {
         setNotificaciones(data || []);
       }
     } catch (error: any) {
-      console.error("Error al obtener notificaciones:", error.message);
+      console.error(
+        "Error al obtener notificaciones del profesional:",
+        error.message,
+      );
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -70,23 +73,22 @@ export default function NotificacionCliente() {
     fetchNotificaciones();
   };
 
-  // Función interactiva para marcar como leída y navegar al detalle
   const manejarPresionarNotificacion = async (item: Notificacion) => {
     try {
       if (!item.leido) {
-        // Marcamos en la base de datos de manera optimista
+        // Actualización optimista en BD
         await supabase
           .from("notificaciones")
           .update({ leido: true })
           .eq("id", item.id);
 
-        // Actualizamos el estado local
+        // Reflejar cambio en el estado local
         setNotificaciones((prev) =>
           prev.map((n) => (n.id === item.id ? { ...n, leido: true } : n)),
         );
       }
 
-      // Si la notificación trae un ID de solicitud amarrado, mandamos al usuario directo allá
+      // Redirección al detalle de la HU-18
       if (item.solicitud_id) {
         router.push({
           pathname: "/HU-18/solicitudDetalle",
@@ -94,34 +96,26 @@ export default function NotificacionCliente() {
         });
       }
     } catch (error: any) {
-      console.error("Error al actualizar lectura:", error.message);
+      console.error("Error al marcar como leída:", error.message);
     }
   };
 
-  // Función auxiliar para deducir el icono y color según palabras clave de seguridad
+  // Mapeo visual personalizado para el perfil del Profesional
   const obtenerEstiloNotificacion = (titulo: string) => {
     const t = titulo.toLowerCase();
-    if (t.includes("rechazada") || t.includes("cancelada")) {
-      return { icono: "close-circle", color: "#DC2626" }; // Rojo
-    }
     if (t.includes("disputa") || t.includes("reclamo") || t.includes("⚠️")) {
-      return { icono: "shield-sharp", color: "#EAB308" }; // Ámbar Alerta
+      return { icono: "shield-sharp", color: "#DC2626" }; // Rojo de Alerta Crítica para disputas
     }
-    if (
-      t.includes("entrega") ||
-      t.includes("terminado") ||
-      t.includes("evidencia")
-    ) {
-      return { icono: "cloud-upload", color: "#0284C7" }; // Azul Info
+    if (t.includes("pago") || t.includes("finalizado") || t.includes("💰")) {
+      return { icono: "cash-outline", color: "#16A34A" }; // Verde Dinero/Éxito para pagos liberados
     }
-    if (
-      t.includes("pago") ||
-      t.includes("finalizado") ||
-      t.includes("aprobado")
-    ) {
-      return { icono: "checkmark-done-circle", color: "#16A34A" }; // Verde Éxito
+    if (t.includes("revisión") || t.includes("👀")) {
+      return { icono: "eye-outline", color: "#0284C7" }; // Azul para lectura/revisión
     }
-    return { icono: "notifications", color: COLORS.primaryBlue }; // Estándar
+    if (t.includes("aceptada") || t.includes("🎉")) {
+      return { icono: "briefcase-outline", color: COLORS.primaryBlue }; // Maletín de trabajo asignado
+    }
+    return { icono: "notifications", color: COLORS.primaryBlue };
   };
 
   const renderItem = ({ item }: { item: Notificacion }) => {
@@ -168,7 +162,7 @@ export default function NotificacionCliente() {
       </View>
 
       <View style={styles.body}>
-        <Text style={styles.title}>Notificaciones</Text>
+        <Text style={styles.title}>Panel de Avisos</Text>
 
         {loading && !refreshing ? (
           <ActivityIndicator
@@ -191,8 +185,12 @@ export default function NotificacionCliente() {
             }
             ListEmptyComponent={
               <View style={styles.empty}>
-                <Ionicons name="mail-open-outline" size={60} color="#CBD5E1" />
-                <Text style={styles.emptyText}>No tienes mensajes nuevos</Text>
+                <Ionicons
+                  name="folder-open-outline"
+                  size={60}
+                  color="#CBD5E1"
+                />
+                <Text style={styles.emptyText}>Bandeja de entrada vacía</Text>
               </View>
             }
           />
@@ -233,7 +231,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowOffset: { width: 0, height: 2 },
   },
-  cardNoLeida: { borderLeftWidth: 4, borderLeftColor: COLORS.primaryBlue },
+  cardNoLeida: { borderLeftWidth: 4, borderLeftColor: COLORS.accentGold }, // Línea dorada para resaltar al profesional
   iconContainer: { marginRight: 15, justifyContent: "center" },
   content: { flex: 1 },
   notifTitle: { fontSize: 16, fontWeight: "bold", color: COLORS.textDark },

@@ -153,6 +153,37 @@ export default function AdminLayout() {
           ),
         }}
       />
+      {/* --- RUTAS OCULTAS DE LA BARRA DE NAVEGACIÓN --- */}
+      <Tabs.Screen
+        name="mi-perfil-detalle"
+        options={{
+          href: null, // Al ser null, se oculta de la barra inferior
+        }}
+      />
+      <Tabs.Screen
+        name="logs"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="notificaciones-globales"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="configuracion-tecnica"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="ayuda-soporte"
+        options={{
+          href: null,
+        }}
+      />
     </Tabs>
   );
 }

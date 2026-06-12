@@ -19,7 +19,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/RedProfesional-removebg.png",
+        "foregroundImage": "./assets/images/Icono_RP_android.png",
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,

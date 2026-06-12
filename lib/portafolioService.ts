@@ -1,6 +1,4 @@
 import { supabase } from "@/lib/supabase";
-import { decode } from "base64-arraybuffer";
-import * as FileSystem from "expo-file-system/legacy";
 
 export type ArchivoSeleccionado = {
   name: string;
@@ -22,35 +20,46 @@ export type PortafolioDB = {
   profesional_id: string;
   titulo: string;
   descripcion: string;
-  categoria: string;
-  archivos: ArchivoPortafolioDB[];
+  categoria_id: string | null;
   portada_url: string | null;
   created_at: string;
   updated_at: string;
 };
 
+/**
+ * Sube un archivo usando FormData, el método más estable y compatible
+ * con Android para evitar fallos de red (Network Request Failed).
+ */
 export async function subirArchivoPortafolio(
   userId: string,
-  archivo: ArchivoSeleccionado
+  archivo: ArchivoSeleccionado,
 ): Promise<ArchivoPortafolioDB> {
-  const base64 = await FileSystem.readAsStringAsync(archivo.uri, {
-    encoding: FileSystem.EncodingType.Base64,
-  });
-
-  const nombreLimpio = archivo.name.replace(/\s+/g, "_");
+  // 1. Sanitizar el nombre del archivo
+  const nombreLimpio = archivo.name.replace(/[^a-zA-Z0-9.-]/g, "_");
   const path = `${userId}/${Date.now()}-${nombreLimpio}`;
 
+  // 2. Construir FormData nativo para transporte binario
+  const formData = new FormData();
+  formData.append("file", {
+    uri: archivo.uri,
+    name: nombreLimpio,
+    type: archivo.mimeType || "application/octet-stream",
+  } as any);
+
+  // 3. Subida al bucket 'portafolios' (en minúsculas según tu panel)
   const { error } = await supabase.storage
     .from("portafolios")
-    .upload(path, decode(base64), {
+    .upload(path, formData, {
       contentType: archivo.mimeType || "application/octet-stream",
       upsert: false,
     });
 
   if (error) {
+    console.error("Error directo en el método upload de Supabase:", error);
     throw error;
   }
 
+  // 4. Obtener URL pública
   const { data } = supabase.storage.from("portafolios").getPublicUrl(path);
 
   return {
@@ -62,43 +71,100 @@ export async function subirArchivoPortafolio(
   };
 }
 
+/**
+ * Inserta de manera secuencial los datos en las dos tablas del esquema:
+ * 1º Guarda el Portafolio y obtiene su ID.
+ * 2º Registra el adjunto en la tabla intermedia vinculada.
+ */
 export async function crearPortafolio(params: {
+  profesional_id: string; // 👈 Mapeado correctamente para TypeScript
   titulo: string;
   descripcion: string;
-  categoria: string;
+  categoriaId: string | null;
   archivos: ArchivoSeleccionado[];
-}) {
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser();
+}): Promise<any> {
+  try {
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
 
-  if (userError || !user) {
-    throw new Error("No hay usuario autenticado.");
-  }
+    if (userError || !user) {
+      throw new Error("No se pudo obtener el usuario autenticado.");
+    }
 
-  const archivosSubidos = await Promise.all(
-    params.archivos.map((archivo) => subirArchivoPortafolio(user.id, archivo))
-  );
+    // PASO UNO: Insertar los datos base en la tabla principal 'portafolios'
+    const { data: nuevoPortafolio, error: errorPortafolio } = await supabase
+      .from("portafolios")
+      .insert([
+        {
+          profesional_id: params.profesional_id,
+          titulo: params.titulo,
+          descripcion: params.descripcion,
+          // Si params.categoriaId no es un UUID válido, mándalo como null
+          // para evitar el error 22P02 "invalid input syntax for type uuid"
+          categoria_id:
+            params.categoriaId && params.categoriaId.includes("-")
+              ? params.categoriaId
+              : null,
+          portada_url: null,
+        },
+      ])
+      .select()
+      .single();
 
-  const { data, error } = await supabase
-    .from("portafolios")
-    .insert({
-      profesional_id: user.id,
-      titulo: params.titulo,
-      descripcion: params.descripcion,
-      categoria: params.categoria,
-      archivos: archivosSubidos,
-      portada_url: archivosSubidos[0]?.url || null,
-    })
-    .select()
-    .single();
+    if (errorPortafolio) {
+      console.error(
+        "Error al insertar en la tabla portafolios:",
+        errorPortafolio,
+      );
+      throw errorPortafolio;
+    }
 
-  if (error) {
+    // PASO DOS: Subir el archivo e insertarlo en la tabla secundaria
+    if (params.archivos && params.archivos.length > 0 && nuevoPortafolio) {
+      const archivoParaSubir = params.archivos[0];
+
+      const archivoSubido = await subirArchivoPortafolio(
+        user.id,
+        archivoParaSubir,
+      );
+
+      // CORREGIDO: Se cambió 'portolio_archivos' a 'portafolio_archivos' (nombre real de tu tabla)
+      const { error: errorArchivo } = await supabase
+        .from("portafolio_archivos")
+        .insert([
+          {
+            portafolio_id: nuevoPortafolio.id,
+            archivo_url: archivoSubido.url,
+            tipo: archivoParaSubir.mimeType || "application/octet-stream",
+          },
+        ]);
+
+      if (errorArchivo) {
+        console.error(
+          "Error al registrar en portafolio_archivos:",
+          errorArchivo,
+        );
+        throw errorArchivo;
+      }
+
+      // Colocar la primera imagen cargada como portada del trabajo
+      if (archivoParaSubir.mimeType?.startsWith("image/")) {
+        await supabase
+          .from("portafolios")
+          .update({ portada_url: archivoSubido.url })
+          .eq("id", nuevoPortafolio.id);
+
+        nuevoPortafolio.portada_url = archivoSubido.url;
+      }
+    }
+
+    return nuevoPortafolio;
+  } catch (error) {
+    console.error("Error global en el flujo de crearPortafolio:", error);
     throw error;
   }
-
-  return data as PortafolioDB;
 }
 
 export async function listarMisPortafolios() {
@@ -128,7 +194,7 @@ export async function actualizarPortafolio(params: {
   id: string;
   titulo: string;
   descripcion: string;
-  categoria: string;
+  categoriaId: string | null;
   archivos: ArchivoPortafolioDB[];
 }) {
   const {
@@ -140,13 +206,12 @@ export async function actualizarPortafolio(params: {
     throw new Error("No hay usuario autenticado.");
   }
 
-  const { data, error } = await supabase
+  const { data, error = null } = await supabase
     .from("portafolios")
     .update({
       titulo: params.titulo,
       descripcion: params.descripcion,
-      categoria: params.categoria,
-      archivos: params.archivos,
+      categoria_id: params.categoriaId,
       portada_url: params.archivos[0]?.url || null,
       updated_at: new Date().toISOString(),
     })
@@ -166,11 +231,10 @@ export async function eliminarPortafolio(params: {
   id: string;
   archivos: ArchivoPortafolioDB[];
 }) {
-  const paths = params.archivos
-    .map((archivo) => archivo.path)
-    .filter(Boolean);
+  const paths = params.archivos.map((archivo) => archivo.path).filter(Boolean);
 
   if (paths.length > 0) {
+    // CORREGIDO: Ajustado a 'portafolios' en minúsculas para mantener consistencia
     await supabase.storage.from("portafolios").remove(paths);
   }
 

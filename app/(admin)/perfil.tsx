@@ -3,64 +3,92 @@ import { FontAwesome5, Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 export default function AdminProfileScreen() {
   const router = useRouter();
+  const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState({
     nombre: "",
     email: "",
-    rol: "Administrador",
+    rol: "Administrador del Sistema",
   });
-  const [loading, setLoading] = useState(true);
 
-  // Estadísticas simuladas para el Admin
-  const stats = [
-    { label: "Usuarios", value: "124" },
-    { label: "Reportes", value: "5" },
-    { label: "Soporte", value: "12" },
-  ];
+  // Estado real para las estadísticas conectadas a la DB
+  const [stats, setStats] = useState([
+    { label: "Usuarios", value: "0" },
+    { label: "Reportes", value: "0" },
+    { label: "Soporte", value: "0" },
+  ]);
 
   useEffect(() => {
-    fetchProfile();
+    loadAdminDashboardData();
   }, []);
 
-  async function fetchProfile() {
+  async function loadAdminDashboardData() {
     try {
       setLoading(true);
+
+      // 1. Obtener el usuario autenticado de la sesión actual
       const {
         data: { user },
+        error: authError,
       } = await supabase.auth.getUser();
+      if (authError || !user) throw new Error("No se pudo obtener el usuario.");
 
-      if (user) {
-        const { data: perfil, error } = await supabase
-          .from("perfiles")
-          .select("nombre_completo")
-          .eq("id", user.id)
-          .single();
+      // 2. Traer el perfil del Admin en paralelo con los conteos reales de la base de datos
+      const [perfilRes, usuariosCount, reportesCount, soporteCount] =
+        await Promise.all([
+          supabase
+            .from("perfiles")
+            .select("nombre_completo")
+            .eq("id", user.id)
+            .single(),
+          supabase.from("perfiles").select("*", { count: "exact", head: true }),
+          supabase
+            .from("reportes")
+            .select("*", { count: "exact", head: true })
+            .eq("estado", "pendiente"), // Filtrable según lógica
+          supabase.from("soporte").select("*", { count: "exact", head: true }), // Ajustar si tienes tabla específica
+        ]);
 
-        if (perfil) {
-          setProfile({
-            nombre: perfil.nombre_completo,
-            email: user.email || "",
-            rol: "Administrador del Sistema",
-          });
-        }
+      // 3. Asignar datos del perfil
+      if (perfilRes.data) {
+        setProfile({
+          nombre: perfilRes.data.nombre_completo,
+          email: user.email || "",
+          rol: "Administrador del Sistema",
+        });
       }
+
+      // 4. Sincronizar estadísticas reales (usando un fallback seguro si las tablas varían en nombres)
+      setStats([
+        { label: "Usuarios", value: String(usuariosCount.count || 0) },
+        { label: "Reportes", value: String(reportesCount.count || 0) },
+        { label: "Soporte", value: String(soporteCount.count || 0) },
+      ]);
     } catch (error) {
-      console.error("Error al cargar perfil:", error);
+      console.error(
+        "Error al cargar datos del panel de administración:",
+        error,
+      );
+      Alert.alert(
+        "Error",
+        "Ocurrió un inconveniente al actualizar las estadísticas.",
+      );
     } finally {
       setLoading(false);
     }
   }
 
+  // Función para manejar el cierre de sesión
   async function handleSignOut() {
     Alert.alert(
       "Cerrar Sesión",
@@ -69,12 +97,10 @@ export default function AdminProfileScreen() {
         { text: "Cancelar", style: "cancel" },
         {
           text: "Salir",
-          style: "destructive", // En iOS esto pone el texto en rojo
+          style: "destructive",
           onPress: async () => {
             try {
-              // 1. Cerramos sesión en Supabase (Limpia el token local)
               const { error } = await supabase.auth.signOut();
-
               if (error) {
                 Alert.alert(
                   "Error",
@@ -82,13 +108,8 @@ export default function AdminProfileScreen() {
                 );
                 return;
               }
-
-              // 2. Forzamos la redirección a tu archivo de login específico
-              // Usamos replace para que el usuario no pueda volver atrás con el botón del celular
-              router.replace("/HU-02/login");
-
-              // 3. Opcional: Un mensaje de confirmación (Toast o Alert)
               console.log("Sesión cerrada exitosamente");
+              router.replace("/HU-02/login");
             } catch (err) {
               console.error("Error inesperado al salir:", err);
             }
@@ -116,7 +137,7 @@ export default function AdminProfileScreen() {
           </View>
         </View>
 
-        <Text style={styles.userName}>{profile.nombre}</Text>
+        <Text style={styles.userName}>{profile.nombre || "Administrador"}</Text>
         <Text style={styles.userRole}>{profile.rol}</Text>
 
         <View style={styles.badgeContainer}>
@@ -124,7 +145,7 @@ export default function AdminProfileScreen() {
         </View>
       </View>
 
-      {/* --- ESTADÍSTICAS RÁPIDAS --- */}
+      {/* --- ESTADÍSTICAS EN TIEMPO REAL --- */}
       <View style={styles.statsContainer}>
         {stats.map((item, index) => (
           <View key={index} style={styles.statBox}>
@@ -134,33 +155,33 @@ export default function AdminProfileScreen() {
         ))}
       </View>
 
-      {/* --- OPCIONES DE ADMINISTRADOR --- */}
+      {/* --- OPCIONES DE ADMINISTRADOR CON ENRUTAMIENTO --- */}
       <View style={styles.optionsContainer}>
         <OptionItem
           icon="person-outline"
           label="Mi perfil"
-          onPress={() => {}}
+          onPress={() => router.push("/(admin)/mi-perfil-detalle")}
           highlight
         />
         <OptionItem
           icon="shield-checkmark-outline"
           label="Logs del sistema"
-          onPress={() => {}}
+          onPress={() => router.push("/(admin)/logs")}
         />
         <OptionItem
           icon="notifications-outline"
           label="Notificaciones globales"
-          onPress={() => {}}
+          onPress={() => router.push("/(admin)/notificaciones-globales")}
         />
         <OptionItem
           icon="settings-outline"
           label="Configuración técnica"
-          onPress={() => {}}
+          onPress={() => router.push("/(admin)/configuracion-tecnica")}
         />
         <OptionItem
           icon="help-circle-outline"
           label="Ayuda y Soporte"
-          onPress={() => {}}
+          onPress={() => router.push("/(admin)/ayuda-soporte")}
         />
         <OptionItem
           icon="log-out-outline"
@@ -174,7 +195,7 @@ export default function AdminProfileScreen() {
   );
 }
 
-// 1. Definimos los tipos de las propiedades
+// Interfaz TypeScript para los elementos de opción
 interface OptionItemProps {
   icon: string;
   label: string;
@@ -184,7 +205,6 @@ interface OptionItemProps {
   color?: string;
 }
 
-// 2. Aplicamos la interfaz a la función
 function OptionItem({
   icon,
   label,
@@ -193,7 +213,6 @@ function OptionItem({
   isLast = false,
   color = "#1A4670",
 }: OptionItemProps) {
-  // <--- Aquí le asignamos la interfaz
   return (
     <TouchableOpacity
       style={[
@@ -275,7 +294,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 15,
   },
   highlightedRow: {
-    backgroundColor: "#FCEFC7", // Color crema de la imagen
+    backgroundColor: "#FCEFC7",
     borderRadius: 12,
   },
   borderBottom: {

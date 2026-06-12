@@ -1,8 +1,9 @@
-import { crearPortafolio } from "@/lib/portafolioService";
+import { crearPortafolio, PortafolioDB } from "@/lib/portafolioService";
 import * as DocumentPicker from "expo-document-picker";
 import { router } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Image,
   ScrollView,
@@ -12,6 +13,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { supabase } from "../../lib/supabase";
 
 type ArchivoPortafolio = {
   name: string;
@@ -20,15 +22,15 @@ type ArchivoPortafolio = {
   size?: number;
 };
 
-type TrabajoGuardado = {
-  id: number;
-  titulo: string;
-  descripcion: string;
-  categoria: string;
-  archivos: ArchivoPortafolio[];
-};
-
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
+
+interface PerfilProfesional {
+  id: string;
+  nombre: string;
+  apellido?: string;
+  rol_or_profesion?: string;
+  ciudad?: string;
+}
 
 export default function HU09SubirPortafolio() {
   const [titulo, setTitulo] = useState("");
@@ -37,11 +39,59 @@ export default function HU09SubirPortafolio() {
   const [archivos, setArchivos] = useState<ArchivoPortafolio[]>([]);
   const [subiendo, setSubiendo] = useState(false);
 
-  const [trabajosGuardados, setTrabajosGuardados] = useState<TrabajoGuardado[]>(
+  const [perfil, setPerfil] = useState<PerfilProfesional | null>(null);
+  const [cargandoPerfil, setCargandoPerfil] = useState(true);
+
+  const [trabajosGuardados, setTrabajosGuardados] = useState<PortafolioDB[]>(
     [],
   );
   const [mostrarFormulario, setMostrarFormulario] = useState(true);
   const [mostrarExito, setMostrarExito] = useState(false);
+
+  useEffect(() => {
+    obtenerPerfilActual();
+  }, []);
+
+  const obtenerPerfilActual = async () => {
+    try {
+      setCargandoPerfil(true);
+
+      const {
+        data: { user },
+        error: errorAuth,
+      } = await supabase.auth.getUser();
+
+      if (errorAuth || !user) {
+        Alert.alert("Error", "No se encontró una sesión activa.");
+        return;
+      }
+
+      const { data, error: errorBD } = await supabase
+        .from("profesionales-info")
+        .select("id, nombre, apellido, rol_or_profesion, ciudad")
+        .eq("id", user.id)
+        .single();
+
+      if (errorBD) {
+        console.error("Error al obtener perfil de la BD:", errorBD);
+      } else if (data) {
+        setPerfil(data);
+      }
+    } catch (error) {
+      console.error("Error en flujo de perfil:", error);
+    } finally {
+      setCargandoPerfil(false);
+    }
+  };
+
+  const obtenerIniciales = () => {
+    if (!perfil?.nombre) return "??";
+    const nom = perfil.nombre.trim().charAt(0).toUpperCase();
+    const ape = perfil.apellido
+      ? perfil.apellido.trim().charAt(0).toUpperCase()
+      : "";
+    return `${nom}${ape}`;
+  };
 
   const seleccionarArchivo = async () => {
     try {
@@ -106,47 +156,47 @@ export default function HU09SubirPortafolio() {
       return;
     }
 
+    if (!perfil) {
+      Alert.alert("Error", "No se han cargado tus datos de perfil.");
+      return;
+    }
+
     setSubiendo(true);
 
     try {
+      const esUUID =
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+          categoria,
+        );
+
       const nuevoTrabajo = await crearPortafolio({
+        profesional_id: perfil.id,
         titulo,
         descripcion,
-        categoria,
+        categoriaId: esUUID ? categoria : null,
         archivos,
       });
 
-      setTrabajosGuardados((prev) => [
-        {
-          id: Date.now(),
-          titulo: nuevoTrabajo.titulo,
-          descripcion: nuevoTrabajo.descripcion,
-          categoria: nuevoTrabajo.categoria,
-          archivos: [...archivos],
-        },
-        ...prev,
-      ]);
-
+      setTrabajosGuardados((prev) => [nuevoTrabajo, ...prev]);
       setTitulo("");
       setDescripcion("");
       setCategoria("");
       setArchivos([]);
-
       setMostrarFormulario(false);
       setMostrarExito(true);
+      setSubiendo(false);
 
       Alert.alert(
         "Portafolio subido",
-        "Tu trabajo fue agregado correctamente al portafolio.",
+        "Tu trabajo fue agregado correctamente.",
       );
     } catch (error) {
       console.error(error);
+      setSubiendo(false);
       Alert.alert(
         "Error",
         "No se pudo guardar el portafolio en la base de datos.",
       );
-    } finally {
-      setSubiendo(false);
     }
   };
 
@@ -161,7 +211,6 @@ export default function HU09SubirPortafolio() {
       setMostrarExito(false);
       return;
     }
-
     router.back();
   };
 
@@ -187,31 +236,50 @@ export default function HU09SubirPortafolio() {
                 <Text style={styles.successText}>
                   ✓ Portafolio agregado con éxito
                 </Text>
-
                 <TouchableOpacity onPress={() => setMostrarExito(false)}>
                   <Text style={styles.successClose}>×</Text>
                 </TouchableOpacity>
               </View>
             )}
 
-            <View style={styles.profileCard}>
-              <View style={styles.avatarCircle}>
-                <Text style={styles.avatarText}>VB</Text>
-              </View>
-
-              <View style={styles.profileInfo}>
-                <Text style={styles.profileName}>Valeska Ballesteros</Text>
-                <Text style={styles.profileJob}>Electricista</Text>
-                <Text style={styles.profileLocation}>Cochabamba</Text>
-              </View>
-
-              <TouchableOpacity
-                style={styles.profileButton}
-                onPress={() => router.push("/(profesional)/perfil")}
+            {/* CORREGIDO: Tarjeta de perfil conectada dinámicamente a Supabase */}
+            {cargandoPerfil ? (
+              <View
+                style={[
+                  styles.profileCard,
+                  { justifyContent: "center", paddingVertical: 20 },
+                ]}
               >
-                <Text style={styles.profileButtonText}>Ver mi perfil</Text>
-              </TouchableOpacity>
-            </View>
+                <ActivityIndicator size="small" color="#003B73" />
+              </View>
+            ) : (
+              <View style={styles.profileCard}>
+                <View style={styles.avatarCircle}>
+                  <Text style={styles.avatarText}>{obtenerIniciales()}</Text>
+                </View>
+
+                <View style={styles.profileInfo}>
+                  <Text style={styles.profileName}>
+                    {perfil
+                      ? `${perfil.nombre} ${perfil.apellido || ""}`
+                      : "Usuario"}
+                  </Text>
+                  <Text style={styles.profileJob}>
+                    {perfil?.rol_or_profesion || "Profesión no especificada"}
+                  </Text>
+                  <Text style={styles.profileLocation}>
+                    {perfil?.ciudad || "Ubicación no especificada"}
+                  </Text>
+                </View>
+
+                <TouchableOpacity
+                  style={styles.profileButton}
+                  onPress={() => router.push("/(profesional)/perfil")}
+                >
+                  <Text style={styles.profileButtonText}>Ver mi perfil</Text>
+                </TouchableOpacity>
+              </View>
+            )}
 
             <View style={styles.portfolioHeader}>
               <View>
@@ -227,20 +295,19 @@ export default function HU09SubirPortafolio() {
             </View>
 
             {trabajosGuardados.map((trabajo) => {
-              const primerArchivo = trabajo.archivos[0];
-              const esImagen = primerArchivo?.mimeType?.includes("image");
+              const tienePortada = trabajo.portada_url !== null;
 
               return (
                 <View key={trabajo.id} style={styles.portfolioItem}>
                   <View style={styles.portfolioImageBox}>
-                    {esImagen ? (
+                    {tienePortada ? (
                       <Image
-                        source={{ uri: primerArchivo.uri }}
+                        source={{ uri: trabajo.portada_url! }}
                         style={styles.portfolioImage}
                         resizeMode="cover"
                       />
                     ) : (
-                      <Text style={styles.portfolioImageText}>PDF</Text>
+                      <Text style={styles.portfolioImageText}>Doc</Text>
                     )}
                   </View>
 
@@ -250,11 +317,7 @@ export default function HU09SubirPortafolio() {
                     </Text>
 
                     <Text style={styles.portfolioItemCategory}>
-                      {trabajo.categoria}
-                    </Text>
-
-                    <Text style={styles.portfolioItemFiles}>
-                      {trabajo.archivos.length} archivo(s)
+                      {descripcion ? "Publicado" : "Sin descripción"}
                     </Text>
                   </View>
 
@@ -290,9 +353,8 @@ export default function HU09SubirPortafolio() {
             </View>
 
             <Text style={styles.title}>Agrega trabajos a tu portafolio</Text>
-
             <Text style={styles.subtitle}>
-              Sube imágenes o documentos para mostrar tu experiencia.
+              Sube imágenes o documentos para mostrar tu experience.
             </Text>
 
             <View style={styles.formCard}>
@@ -382,7 +444,6 @@ export default function HU09SubirPortafolio() {
     </View>
   );
 }
-
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
@@ -559,7 +620,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
     fontSize: 15,
   },
-
   portfolioCard: {
     backgroundColor: "#FFFFFF",
     borderRadius: 18,

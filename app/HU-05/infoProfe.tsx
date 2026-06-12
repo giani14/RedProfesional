@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import { Feather, Ionicons, MaterialIcons } from "@expo/vector-icons";
+import * as DocumentPicker from "expo-document-picker";
 import { Stack, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
@@ -15,8 +16,6 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-// Importamos el selector de documentos de Expo
-import * as DocumentPicker from "expo-document-picker";
 
 const COLORS = {
   primaryBlue: "#123F78",
@@ -170,12 +169,10 @@ export default function ProfeInfoScreen() {
   // ESTADOS DEL FORMULARIO
   const [nombre, setNombre] = useState("");
   const [especialidad, setEspecialidad] = useState("");
-  const [experiencia, setExperiencia] = useState("");
+  const [experiencia, setExperiencia] = useState(""); // Almacena el texto limpio directamente
   const [ubicacion, setUbicacion] = useState("Cochabamba");
   const [descripcion, setDescripcion] = useState("");
   const [telefono, setTelefono] = useState("+591 ");
-
-  // NUEVO ESTADO: Guarda el archivo seleccionado del certificado
   const [certificadoFile, setCertificadoFile] = useState<any>(null);
 
   // ESTADOS PARA RECURSOS DINÁMICOS
@@ -215,6 +212,7 @@ export default function ProfeInfoScreen() {
         enum_type_name: "rango_experiencia",
       });
       if (error || !data) {
+        // Fallback robusto por si falla la conexión a la DB
         setExperienciaOpciones([
           "Sin experiencia",
           "1-2 años",
@@ -236,11 +234,10 @@ export default function ProfeInfoScreen() {
     }
   };
 
-  // FUNCIÓN PARA SELECCIONAR EL CERTIFICADO DESDE EL TELÉFONO
   const handlePickDocument = async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
-        type: ["image/*", "application/pdf"], // Permitimos imágenes y PDFs
+        type: ["image/*", "application/pdf"],
         copyToCacheDirectory: true,
       });
 
@@ -255,25 +252,32 @@ export default function ProfeInfoScreen() {
   };
 
   const handleNextStep = () => {
-    if (!nombre || !especialidad || !telefono) {
+    // Sanitización del teléfono: removemos espacios extra molestos al final
+    const telefonoLimpio = telefono.trim();
+
+    if (
+      !nombre.trim() ||
+      !especialidad.trim() ||
+      telefonoLimpio === "+591" ||
+      !telefonoLimpio
+    ) {
       Alert.alert(
         "Campos obligatorios",
-        "Por favor completa tu nombre, especialidad y teléfono.",
+        "Por favor completa tu nombre, especialidad y un teléfono válido.",
       );
       return;
     }
 
-    // Pasamos el URI y nombre del archivo a la pantalla de confirmación mediante los params
+    // Pasamos de forma segura los parámetros limpios
     router.push({
       pathname: "/HU-05/confirProfe",
       params: {
-        nombre,
+        nombre: nombre.trim(),
         especialidad,
-        experiencia: encodeURIComponent(experiencia),
-        ubicacion,
-        descripcion,
-        telefono,
-        // Mandamos los datos del archivo temporal para subirlos en el paso final
+        experiencia: encodeURIComponent(experiencia), // Aquí se codifica únicamente para el viaje por URL
+        ubicacion: ubicacion.trim(),
+        descripcion: descripcion.trim(),
+        telefono: telefonoLimpio,
         certificadoUri: certificadoFile ? certificadoFile.uri : "",
         certificadoName: certificadoFile ? certificadoFile.name : "",
         certificadoMime: certificadoFile ? certificadoFile.mimeType : "",
@@ -342,7 +346,7 @@ export default function ProfeInfoScreen() {
                   ? "Cargando opciones..."
                   : "Selecciona tu experiencia"
               }
-              value={decodeURIComponent(experiencia)}
+              value={experiencia} // Usamos el estado limpio directamente
               onPress={() => setModalExperienciaVisible(true)}
             />
 
@@ -386,8 +390,8 @@ export default function ProfeInfoScreen() {
               keyboardType="phone-pad"
             />
 
-            {/* SECCIÓN NUEVA: CARGA DE CERTIFICADO DE PROFESIÓN O DIPLOMADO */}
-            <Text style={styles.label}>Certificado/Diplomado de profesion</Text>
+            {/* SECCIÓN DE CARGA DE CERTIFICADO */}
+            <Text style={styles.label}>Certificado/Diplomado de profesión</Text>
             <TouchableOpacity
               style={[
                 styles.uploadBox,
@@ -520,7 +524,7 @@ export default function ProfeInfoScreen() {
                   <Text
                     style={[
                       styles.modalItemText,
-                      decodeURIComponent(experiencia) === item && {
+                      experiencia === item && {
                         color: COLORS.accentGold,
                         fontWeight: "700",
                       },
@@ -528,7 +532,7 @@ export default function ProfeInfoScreen() {
                   >
                     {item}
                   </Text>
-                  {decodeURIComponent(experiencia) === item && (
+                  {experiencia === item && (
                     <Ionicons
                       name="checkmark"
                       size={20}
@@ -550,7 +554,6 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primaryBlue,
     flexDirection: "row",
     alignItems: "center",
-
     paddingHorizontal: 20,
     paddingBottom: 20,
     justifyContent: "space-between",
@@ -634,7 +637,7 @@ const styles = StyleSheet.create({
   },
   modalHeader: {
     flexDirection: "row",
-    justifyContent: "space-between",
+    justifyBetween: "space-between",
     alignItems: "center",
     paddingHorizontal: 24,
     marginBottom: 15,
@@ -653,12 +656,10 @@ const styles = StyleSheet.create({
     borderBottomColor: "#F9FAFB",
   },
   modalItemText: { fontSize: 16, color: "#374151" },
-
-  // 🌟 NUEVOS ESTILOS EXACTOS DE LA CAPTURA PARA CARGAR EL ARCHIVO
   uploadBox: {
     borderWidth: 2,
     borderColor: "#4285F4",
-    borderStyle: "dashed", // Bordes punteados
+    borderStyle: "dashed",
     borderRadius: 20,
     backgroundColor: "#FFFFFF",
     paddingVertical: 25,

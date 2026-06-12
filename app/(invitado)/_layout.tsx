@@ -2,11 +2,10 @@ import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
 import React from "react";
 
-export default function ClienteLayout() {
+export default function InvitadoLayout() {
   return (
     <Tabs
       screenOptions={{
-        // Colores de la imagen
         tabBarActiveTintColor: "#2563EB", // Azul activo
         tabBarInactiveTintColor: "#6B7280", // Gris inactivo
         tabBarStyle: {
@@ -16,7 +15,6 @@ export default function ClienteLayout() {
           paddingTop: 8,
           borderTopWidth: 1,
           borderTopColor: "#F3F4F6",
-          // Sombra para dar profundidad sin ser flotante
           elevation: 10,
           shadowColor: "#000",
           shadowOffset: { width: 0, height: -2 },
@@ -27,6 +25,7 @@ export default function ClienteLayout() {
           fontSize: 12,
           fontWeight: "500",
         },
+        // Mantenemos la cabecera idéntica al RootLayout por consistencia visual
         headerStyle: {
           backgroundColor: "#1A4670",
         },
@@ -38,7 +37,7 @@ export default function ClienteLayout() {
         name="index"
         options={{
           title: "Inicio",
-          headerShown: false,
+          headerShown: false, // O true si prefieres que el home del invitado tenga título
           tabBarIcon: ({ color, focused }) => (
             <Ionicons
               name={focused ? "home" : "home-outline"}
@@ -68,7 +67,8 @@ export default function ClienteLayout() {
         name="perfil"
         options={{
           title: "Perfil",
-          headerShown: false,
+          headerTitle: "Mi Cuenta",
+          headerShown: true, // Forzamos cabecera aquí para que actúe como un prompt de login ordenado
           tabBarIcon: ({ color, focused }) => (
             <Ionicons
               name={focused ? "person" : "person-outline"}

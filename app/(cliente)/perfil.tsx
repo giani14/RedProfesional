@@ -81,6 +81,7 @@ const MenuOption = ({ icon, label, onPress, isLogout }: MenuOptionProps) => (
 export default function ClientePerfil() {
   const [loading, setLoading] = useState(true);
   const [paymentModalVisible, setPaymentModalVisible] = useState(false);
+  const [ordersModalVisible, setOrdersModalVisible] = useState(false);
   const [userData, setUserData] = useState<{
     nombre: string;
     rol: string;
@@ -199,9 +200,21 @@ export default function ClientePerfil() {
         </View>
 
         <View style={styles.statsContainer}>
-          <StatItem value="12" label="Pedidos" />
-          <StatItem value="8" label="Contratos" />
-          <StatItem value="4.9" label="Rating" />
+         <TouchableOpacity
+              style={styles.statTouchable}
+              activeOpacity={0.7}
+              onPress={() => router.push("/(cliente)/pedidos")}
+            >
+              <StatItem value="12" label="Pedidos" />
+            </TouchableOpacity>
+
+          <View style={styles.statTouchable}>
+            <StatItem value="8" label="Contratos" />
+          </View>
+
+          <View style={styles.statTouchable}>
+            <StatItem value="4.9" label="Rating" />
+          </View>
         </View>
 
         <View style={styles.menuContainer}>
@@ -256,6 +269,45 @@ export default function ClientePerfil() {
           </View>
         </View>
       </Modal>
+      <Modal
+  visible={ordersModalVisible}
+  transparent
+  animationType="slide"
+  onRequestClose={() => setOrdersModalVisible(false)}
+>
+  <View style={styles.modalOverlay}>
+    <View style={styles.ordersBox}>
+      <Text style={styles.modalTitle}>Mis pedidos</Text>
+
+      <ScrollView>
+        <View style={styles.orderItem}>
+          <Text style={styles.orderTitle}>Solicitud de servicio pendiente</Text>
+          <Text style={styles.orderText}>Estado: En revisión</Text>
+          <Text style={styles.orderText}>Fecha: Hoy</Text>
+        </View>
+
+        <View style={styles.orderItem}>
+          <Text style={styles.orderTitle}>Servicio solicitado</Text>
+          <Text style={styles.orderText}>Estado: Aceptado</Text>
+          <Text style={styles.orderText}>Fecha: Reciente</Text>
+        </View>
+
+        <View style={styles.orderItem}>
+          <Text style={styles.orderTitle}>Pedido finalizado</Text>
+          <Text style={styles.orderText}>Estado: Completado</Text>
+          <Text style={styles.orderText}>Fecha: Anterior</Text>
+        </View>
+      </ScrollView>
+
+      <TouchableOpacity
+        style={styles.modalButton}
+        onPress={() => setOrdersModalVisible(false)}
+      >
+        <Text style={styles.modalButtonText}>Cerrar</Text>
+      </TouchableOpacity>
+    </View>
+  </View>
+</Modal>
     </SafeAreaView>
   );
 }
@@ -419,4 +471,45 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     fontSize: 15,
   },
+  statTouchable: {
+  flex: 1,
+  alignItems: "center",
+},
+ordersBox: {
+  width: "92%",
+  maxHeight: "80%",
+  backgroundColor: COLORS.white,
+  borderRadius: 18,
+  padding: 22,
+},
+orderItem: {
+  backgroundColor: COLORS.lightGray,
+  borderRadius: 14,
+  padding: 14,
+  marginBottom: 10,
+},
+orderTitle: {
+  fontSize: 16,
+  fontWeight: "bold",
+  color: COLORS.primaryBlue,
+  marginBottom: 6,
+},
+orderText: {
+  fontSize: 14,
+  color: COLORS.textGray,
+  marginBottom: 2,
+},
+modalButton: {
+  backgroundColor: COLORS.accentGold,
+  paddingVertical: 12,
+  paddingHorizontal: 30,
+  borderRadius: 12,
+  alignSelf: "center",
+  marginTop: 10,
+},
+modalButtonText: {
+  color: COLORS.primaryBlue,
+  fontWeight: "bold",
+  fontSize: 15,
+},
 });

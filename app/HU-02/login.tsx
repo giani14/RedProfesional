@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import { Feather, Ionicons, MaterialIcons } from "@expo/vector-icons";
+import * as AuthSession from "expo-auth-session";
 import { router, Stack } from "expo-router";
 import React, { useState } from "react";
 import {
@@ -16,6 +17,11 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+// Importaciones para Google Sign-In
+import * as WebBrowser from "expo-web-browser";
+
+// Es importante para cerrar la pestaña del navegador que se abre para la autenticación
+WebBrowser.maybeCompleteAuthSession();
 
 // Constantes de diseño para mantener consistencia
 const COLORS = {
@@ -33,6 +39,7 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false); // Nuevo estado para el botón de Google
 
   // Estados de error mejorados
   const [errors, setErrors] = useState({
@@ -87,6 +94,9 @@ export default function Login() {
         return;
       }
 
+      // IMPORTANTE: Idealmente, esta lógica de redirección por rol debería estar en tu _layout.tsx
+      // usando un listener de `onAuthStateChange` para manejar la sesión globalmente.
+      // Aquí se mantiene para la funcionalidad existente, pero considera refactorizarla.
       const { data: perfilData, error: errorPerfil } = await supabase
         .from("perfiles")
         .select("rol")
@@ -94,7 +104,8 @@ export default function Login() {
         .single();
 
       if (errorPerfil || !perfilData) {
-        router.replace("/HU-05/selRol");
+        console.warn("Perfil no encontrado, redirigiendo a selección de rol.");
+        router.replace("/HU-05/selRol"); // O a un flujo de creación de perfil si es el primer login
         return;
       }
 
@@ -110,13 +121,141 @@ export default function Login() {
         router.replace("/HU-05/selRol");
       }
     } catch (err) {
-      console.error(err);
+      console.error("Error en handleLogin:", err);
       setErrors((prev) => ({
         ...prev,
         general: "Error de conexión. Inténtalo más tarde.",
       }));
     } finally {
       setLoading(false);
+    }
+  };
+
+  // --- NUEVA FUNCIÓN PARA INICIAR SESIÓN CON GOOGLE ---
+  // --- FUNCIÓN DE GOOGLE OPTIMIZADA CON FLUJO DE ROLES ---
+  // --- FUNCIÓN DE GOOGLE TOTALMENTE REFACTORIZADA (IGUAL A HANDLELOGIN) ---
+  // --- FUNCIÓN GOOGLE DEFINITIVA: NUEVOS VS REGISTRADOS ---
+  const handleGoogleSignIn = async () => {
+    setGoogleLoading(true);
+    setErrors((prev) => ({ ...prev, general: "" }));
+
+    try {
+      const redirectUrl = AuthSession.makeRedirectUri({
+        scheme: "redprofesional",
+      });
+
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: redirectUrl,
+          skipBrowserRedirect: true,
+        },
+      });
+
+      if (error) throw error;
+
+      if (data?.url) {
+        // 1. Abrir navegador y esperar que pulse "Continuar"
+        const result = await WebBrowser.openAuthSessionAsync(
+          data.url,
+          redirectUrl,
+        );
+
+        if (result.type === "success") {
+          // Pequeña pausa para asegurar que los tokens se guarden localmente
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+
+          // 2. Traer los datos del usuario que se acaba de loguear
+          const {
+            data: { session: googleSession },
+          } = await supabase.auth.getSession();
+
+          if (!googleSession) {
+            setErrors((prev) => ({
+              ...prev,
+              general: "No se pudo recuperar la sesión de Google.",
+            }));
+            setGoogleLoading(false);
+            return;
+          }
+
+          const userId = googleSession.user.id;
+          const userEmail = googleSession.user.email;
+          // Google siempre nos da el nombre completo del usuario aquí:
+          const fullName =
+            googleSession.user.user_metadata?.full_name || "Usuario de Google";
+
+          // 3. Verificar si YA existe en tu tabla de perfiles
+          const { data: perfilData, error: errorPerfil } = await supabase
+            .from("perfiles")
+            .select("rol")
+            .eq("id", userId)
+            .maybeSingle();
+
+          // =========================================================
+          // CASO 1: ES SU PRIMERA VEZ (No hay rol asignado)
+          // =========================================================
+          if (!perfilData || !perfilData.rol) {
+            console.log(
+              "¡Usuario nuevo o sin rol detectado! Asegurando fila base...",
+            );
+
+            // .upsert evita el error "User already registered" o violaciones de llave primaria
+            const { error: upsertError } = await supabase
+              .from("perfiles")
+              .upsert(
+                {
+                  id: userId,
+                  email: userEmail,
+                  nombre: fullName,
+                  rol: null, // Mantenemos el rol nulo para forzar la selección
+                },
+                { onConflict: "id" }, // Si el ID ya existe en perfiles, no dupliques, solo pisa los datos
+              );
+
+            if (upsertError) {
+              console.error("Error al asegurar el perfil base:", upsertError);
+            }
+
+            // --- PEQUEÑO RETRASO DE SALVAGUARDA NATIVA ---
+            setTimeout(() => {
+              console.log("Redirigiendo de forma segura a Selección de Rol");
+              router.replace("/HU-05/selRol");
+            }, 300);
+            return;
+          }
+
+          // =========================================================
+          // CASO 2: YA ES LA SEGUNDA VEZ (Ya tiene cuenta y rol aclarado)
+          // =========================================================
+          const rol = perfilData.rol.toLowerCase().trim();
+          setGoogleLoading(false);
+
+          setTimeout(() => {
+            console.log(
+              `Redirigiendo de forma segura al panel del rol: ${rol}`,
+            );
+            if (rol === "administrador" || rol === "admin") {
+              router.replace("/(admin)");
+            } else if (rol === "cliente") {
+              router.replace("/(cliente)");
+            } else if (rol === "profesional") {
+              router.replace("/(profesional)");
+            } else {
+              router.replace("/HU-05/selRol");
+            }
+          }, 300);
+        } else {
+          setGoogleLoading(false);
+        }
+      }
+    } catch (err: any) {
+      console.error("Error crítico en OAuth Google:", err);
+      setErrors((prev) => ({
+        ...prev,
+        general: "Error de comunicación con Google.",
+      }));
+      setGoogleLoading(false);
     }
   };
 
@@ -284,14 +423,28 @@ export default function Login() {
               <View style={styles.line} />
             </View>
 
-            <TouchableOpacity style={styles.googleButton}>
-              <Image
-                source={{
-                  uri: "https://cdn-icons-png.flaticon.com/512/2991/2991148.png",
-                }}
-                style={styles.googleIcon}
-              />
-              <Text style={styles.googleText}>Continuar con Google</Text>
+            {/* Botón de Google optimizado */}
+            <TouchableOpacity
+              style={[
+                styles.googleButton,
+                googleLoading && styles.buttonDisabled,
+              ]}
+              onPress={handleGoogleSignIn}
+              disabled={googleLoading}
+            >
+              {googleLoading ? (
+                <ActivityIndicator color={COLORS.primaryBlue} />
+              ) : (
+                <>
+                  <Image
+                    source={{
+                      uri: "https://cdn-icons-png.flaticon.com/512/2991/2991148.png",
+                    }}
+                    style={styles.googleIcon}
+                  />
+                  <Text style={styles.googleText}>Continuar con Google</Text>
+                </>
+              )}
             </TouchableOpacity>
 
             <View style={styles.footer}>

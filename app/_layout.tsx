@@ -1,5 +1,5 @@
 import FontAwesome from "@expo/vector-icons/FontAwesome";
-import { Session } from "@supabase/supabase-js"; // Importación de tipo útil
+import { Session } from "@supabase/supabase-js";
 import { useFonts } from "expo-font";
 import { Stack, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
@@ -32,12 +32,44 @@ export default function RootLayout() {
     if (error) throw error;
   }, [error]);
 
-  // 1. Escuchar el estado de autenticación una sola vez al montar
+  // ==========================================
+  // BLOQUE 4.1: Escuchar de forma activa eventos Auth de Supabase
+  // ==========================================
   useEffect(() => {
     const { data: authListener } = supabase.auth.onAuthStateChange(
       async (event, currentSession) => {
         setSession(currentSession);
         setIsAuthReady(true);
+
+        // Intercepción inmediata si se dispara un login exitoso desde OAuth/Google
+        if (
+          (event === "SIGNED_IN" || event === "USER_UPDATED") &&
+          currentSession
+        ) {
+          try {
+            const { data: profile } = await supabase
+              .from("perfiles")
+              .select("rol")
+              .eq("id", currentSession.user.id)
+              .maybeSingle();
+
+            if (!profile || !profile.rol) {
+              router.replace("/HU-05/selRol");
+              return;
+            }
+
+            const userRol = profile.rol.toLowerCase().trim();
+            if (userRol === "profesional") {
+              router.replace("/(profesional)");
+            } else if (userRol === "cliente") {
+              router.replace("/(cliente)");
+            } else if (userRol === "administrador" || userRol === "admin") {
+              router.replace("/(admin)");
+            }
+          } catch (err) {
+            console.error("Error en redirección forzada OAuth interna:", err);
+          }
+        }
       },
     );
 
@@ -46,16 +78,16 @@ export default function RootLayout() {
     };
   }, []);
 
-  // 2. Controlar la navegación y restricciones basadas en los segmentos y el rol
+  // ==========================================
+  // BLOQUE 4.2: Guardián de rutas dinámicas por segmentos y roles
+  // ==========================================
   useEffect(() => {
-    // Si las fuentes no han cargado o Supabase no ha determinado si hay sesión, esperamos.
     if (!loaded || !isAuthReady) return;
 
     const rootSegment = segments[0];
 
-    // --- LÓGICA SI NO HAY SESIÓN (Modo Invitado / Público) ---
+    // --- ESCENARIO A: SIN SESIÓN ACTIVA ---
     if (!session) {
-      // INCLUIDO: "(invitado)" ahora es una ruta pública permitida
       const publicGroups = ["HU-00", "HU-01", "HU-02", "index", "(invitado)"];
       const isTryingToEnterProtected = !publicGroups.includes(rootSegment);
 
@@ -65,21 +97,51 @@ export default function RootLayout() {
       return;
     }
 
-    // --- LÓGICA SI SÍ HAY SESIÓN (Roles Protegidos) ---
+    // --- ESCENARIO B: CON SESIÓN ACTIVA (Proteger accesos) ---
     const checkRoleAndRedirect = async () => {
       try {
+        // 1. Consultar el perfil de la base de datos
         const { data: profile, error: profileError } = await supabase
           .from("perfiles")
           .select("rol")
           .eq("id", session.user.id)
-          .single();
+          .maybeSingle();
 
-        if (profileError) throw profileError;
+        // 2. Si hay un error o no existe la fila, lo mandamos a selección de rol
+        if (profileError || !profile || !profile.rol) {
+          console.warn("Perfil sin rol asignado aún.");
+          if (rootSegment !== "HU-05") {
+            router.replace("/HU-05/selRol");
+          }
+          return;
+        }
 
-        const userRol = profile?.rol;
+        // 3. Declaramos la variable global del rol limpia
+        const userRol = profile.rol.toLowerCase().trim();
+        const currentSegment = rootSegment ? String(rootSegment) : "";
 
-        if (userRol === "Profesional") {
+        // 4. REGLA DE BYPASS ESENCIAL:
+        // Si ya está logueado y se encuentra en pantallas públicas (Raíz, Login, Bienvenida),
+        // lo empujamos inmediatamente a su stack correspondiente.
+        if (
+          !currentSegment ||
+          currentSegment === "HU-02" ||
+          currentSegment === "index"
+        ) {
+          if (userRol === "profesional") router.replace("/(profesional)");
+          else if (userRol === "cliente") router.replace("/(cliente)");
+          else if (userRol === "administrador" || userRol === "admin")
+            router.replace("/(admin)");
+          return; // Aquí corta solo si estaba en index o login
+        }
+
+        // 5. --- VALIDACIONES DE MAPEO DE HUs ---
+        // (Como no entró al IF de arriba, userRol sigue existiendo perfectamente aquí abajo)
+        if (userRol === "profesional") {
           const allowedHUs = [
+            "HU-00",
+            "HU-01",
+            "HU-02",
             "HU-18",
             "HU-15",
             "HU-12",
@@ -94,7 +156,6 @@ export default function RootLayout() {
             "HU-11",
             "HU-13",
             "HU-14",
-            "HU-15",
             "HU-16",
             "HU-17",
             "HU-19",
@@ -102,13 +163,14 @@ export default function RootLayout() {
             "chat",
           ];
           const isAllowed =
-            rootSegment === "(profesional)" || allowedHUs.includes(rootSegment);
-
-          if (!isAllowed) {
-            router.replace("/(profesional)");
-          }
-        } else if (userRol === "Cliente") {
+            currentSegment === "(profesional)" ||
+            allowedHUs.includes(currentSegment);
+          if (!isAllowed) router.replace("/(profesional)");
+        } else if (userRol === "cliente") {
           const allowedHUs = [
+            "HU-00",
+            "HU-01",
+            "HU-02",
             "HU-03",
             "HU-04",
             "HU-05",
@@ -127,13 +189,14 @@ export default function RootLayout() {
             "chat",
           ];
           const isAllowed =
-            rootSegment === "(cliente)" || allowedHUs.includes(rootSegment);
-
-          if (!isAllowed) {
-            router.replace("/(cliente)");
-          }
-        } else if (userRol === "Administrador") {
+            currentSegment === "(cliente)" ||
+            allowedHUs.includes(currentSegment);
+          if (!isAllowed) router.replace("/(cliente)");
+        } else if (userRol === "administrador" || userRol === "admin") {
           const allowedHUs = [
+            "HU-00",
+            "HU-01",
+            "HU-02",
             "HU-03",
             "HU-04",
             "HU-05",
@@ -160,14 +223,13 @@ export default function RootLayout() {
             "chat",
           ];
           const isAllowed =
-            rootSegment === "(admin)" || allowedHUs.includes(rootSegment);
-
-          if (!isAllowed) {
-            router.replace("/(admin)");
-          }
+            currentSegment === "(admin)" || allowedHUs.includes(currentSegment);
+          if (!isAllowed) router.replace("/(admin)");
+        } else {
+          if (rootSegment !== "HU-05") router.replace("/HU-05/selRol");
         }
       } catch (err) {
-        console.error("Error verificando rol:", err);
+        console.error("Error verificando rol en el layout global:", err);
       }
     };
 
@@ -196,14 +258,12 @@ export default function RootLayout() {
           headerShown: false,
         }}
       >
-        {/* Pantallas principales del sistema */}
         <Stack.Screen name="index" />
         <Stack.Screen name="(invitado)" />
         <Stack.Screen name="(cliente)" />
         <Stack.Screen name="(profesional)" />
         <Stack.Screen name="(admin)" />
 
-        {/* RUTAS EXTERNAS (HUs) */}
         <Stack.Screen
           name="HU-18/solicitudDetalle"
           options={{ headerShown: false }}
@@ -213,7 +273,6 @@ export default function RootLayout() {
           options={{ title: "Iniciar Sesión" }}
         />
 
-        {/* Modales */}
         <Stack.Screen
           name="modal"
           options={{

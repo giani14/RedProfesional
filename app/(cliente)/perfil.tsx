@@ -89,10 +89,21 @@ export default function ClientePerfil() {
     rol: string;
     avatar_url?: string;
   } | null>(null);
-
+  const [stats, setStats] = useState({
+    pedidos: 0,
+    contratos: 0,
+    rating: 0,
+  });
   useEffect(() => {
     fetchUserProfile();
   }, []);
+
+  const getAvatarUrl = (path: string | undefined) => {
+    if (!path) return null;
+    if (path.startsWith("http")) return path;
+    const { data } = supabase.storage.from("avatars").getPublicUrl(path);
+    return data.publicUrl;
+  };
 
   const fetchUserProfile = async () => {
     try {
@@ -100,22 +111,26 @@ export default function ClientePerfil() {
       const {
         data: { user },
       } = await supabase.auth.getUser();
+
       if (user) {
+        // Query sincronizada a tus tablas
         const { data, error } = await supabase
           .from("perfiles")
-          .select("nombre_completo, rol, avatar_url") // <--- Columna añadida
+          .select("nombre_completo, rol, avatar_url")
           .eq("id", user.id)
           .single();
 
         if (error) throw error;
+
         setUserData({
           nombre: data.nombre_completo || "Usuario",
           rol: data.rol || "Cliente",
-          avatar_url: data.avatar_url,
+          avatar_url: data.avatar_url, // Se pasará al procesador de URL
         });
       }
     } catch (error) {
-      console.error("Error cargando perfil:", error);
+      console.error("Error sincronizando perfil:", error);
+      Alert.alert("Error", "No pudimos cargar tus datos.");
     } finally {
       setLoading(false);
     }
@@ -149,6 +164,20 @@ export default function ClientePerfil() {
     ]);
   };
 
+  const fetchStats = async () => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return;
+
+    // Ejemplo: Contar pedidos del cliente
+    const { count: pedidosCount } = await supabase
+      .from("solicitudes")
+      .select("*", { count: "exact", head: true })
+      .eq("cliente_id", user.id);
+
+    setStats((prev) => ({ ...prev, pedidos: pedidosCount || 0 }));
+  };
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -179,7 +208,7 @@ export default function ClientePerfil() {
           <View style={styles.avatarContainer}>
             {userData?.avatar_url ? (
               <Image
-                source={{ uri: userData.avatar_url }}
+                source={{ uri: getAvatarUrl(userData.avatar_url) || "" }}
                 style={styles.mainAvatar}
               />
             ) : (
@@ -207,15 +236,15 @@ export default function ClientePerfil() {
             activeOpacity={0.7}
             onPress={() => setOrdersModalVisible(true)}
           >
-            <StatItem value="99" label="PEDIDOS TEST" />
+            <StatItem value={stats.pedidos} label="PEDIDOS" />
           </TouchableOpacity>
 
           <View style={styles.statTouchable}>
-            <StatItem value="8" label="Contratos" />
+            <StatItem value={stats.contratos} label="Contratos" />
           </View>
 
           <View style={styles.statTouchable}>
-            <StatItem value="4.9" label="Rating" />
+            <StatItem value={stats.rating} label="Rating" />
           </View>
         </View>
 
@@ -330,7 +359,7 @@ export default function ClientePerfil() {
               <Text style={styles.helpLogo}>
                 Red<Text style={{ color: COLORS.accentGold }}>Profesional</Text>
               </Text>
-              <Text style={styles.helpTitle}>Centro de ayuda</Text>
+              <Text style={styles.helpTitle}></Text>
             </View>
 
             <ScrollView>

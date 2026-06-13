@@ -1,8 +1,9 @@
 import { supabase } from "@/lib/supabase";
 import { FontAwesome, Ionicons } from "@expo/vector-icons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
-import React from "react";
+import React, { useState } from "react";
 import {
+  ActivityIndicator,
   Dimensions,
   Image,
   ScrollView,
@@ -21,45 +22,66 @@ const COLORS = {
   bgColor: "#F5F5F5",
   textDarkBlue: "#123F78",
   textBodyGrey: "#6B7280",
-  cardBg: "#E1E9F4", // Azul muy claro para el contenedor de datos
+  cardBg: "#E1E9F4",
 };
 
 export default function ConfirClienteScreen() {
   const router = useRouter();
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Recuperamos los parámetros limpios que enviamos desde infoCliente.tsx
   const { nombre, empresa, areaInteres } = useLocalSearchParams();
 
   const handleNextStep = async () => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+
     try {
       const {
         data: { user },
       } = await supabase.auth.getUser();
 
-      if (user) {
-        // 1. Actualizamos el nombre y el rol en la tabla 'perfiles'
-        await supabase
-          .from("perfiles")
-          .update({
-            nombre_completo: nombre,
-            rol: "Cliente",
-          })
-          .eq("id", user.id);
-
-        // 2. IMPORTANTE: Guardamos la info extra en 'clientes_info'
-        // Usamos .upsert para que cree el registro si no existe o lo actualice
-        const { error } = await supabase.from("clientes_info").upsert({
-          id: user.id,
-          empresa: empresa,
-          area_interes: areaInteres, // Verifica que el nombre sea igual al de la DB
-        });
-
-        if (error) throw error;
-
-        router.push("/HU-05/asigCliente");
+      if (!user) {
+        alert("Sesión no encontrada. Intenta iniciar sesión nuevamente.");
+        setIsSubmitting(false);
+        return;
       }
+
+      // 1. ACTUALIZACIÓN EN PERFILES (Mapeado exacto según tu imagen_ed13bf.png)
+      const { error: perfilError } = await supabase
+        .from("perfiles")
+        .update({
+          nombre_completo: nombre, // Sincronizado con tu columna real de la base de datos
+          rol: "Cliente", // Mantiene consistencia con el ENUM 'tipo_rol'
+        })
+        .eq("id", user.id);
+
+      if (perfilError) throw perfilError;
+
+      // 2. INSERCIÓN / ACTUALIZACIÓN EN CLIENTES_INFO
+      const { error: infoError } = await supabase.from("clientes_info").upsert(
+        {
+          id: user.id,
+          empresa: empresa || "Particular",
+          area_interes: areaInteres,
+        },
+        { onConflict: "id" },
+      );
+
+      if (infoError) throw infoError;
+
+      console.log("¡Perfil de cliente completado con éxito en Supabase!");
+
+      // 3. Redirección al siguiente paso de tu módulo
+      router.push("/HU-05/asigCliente");
     } catch (error: any) {
-      console.error("Error al guardar:", error.message);
-      alert("Hubo un error al guardar tu perfil. Revisa la consola.");
+      console.error(
+        "Error crítico al guardar el perfil del cliente:",
+        error.message,
+      );
+      alert(`Hubo un error al guardar tu perfil: ${error.message}`);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -83,13 +105,16 @@ export default function ConfirClienteScreen() {
                 justifyContent: "space-between",
               }}
             >
-              <TouchableOpacity onPress={() => router.back()}>
+              <TouchableOpacity
+                onPress={() => router.back()}
+                disabled={isSubmitting}
+              >
                 <Ionicons name="arrow-back" size={26} color="#FFFFFF" />
               </TouchableOpacity>
               <Text
                 style={{ color: "#FFFFFF", fontSize: 18, fontWeight: "600" }}
               >
-                Confirmar rol
+                Confirmar datos
               </Text>
               <View style={{ width: 26 }} />
             </View>
@@ -129,6 +154,7 @@ export default function ConfirClienteScreen() {
                   marginHorizontal: 10,
                 }}
               />
+
               <View style={{ alignItems: "center" }}>
                 <View
                   style={{
@@ -184,10 +210,7 @@ export default function ConfirClienteScreen() {
             >
               <Image
                 source={logoRedProfesional}
-                style={{
-                  width: SCREEN_WIDTH * 0.6, // Ajusta el ancho al 70% de la pantalla
-                  height: 120, // Altura fija inicial
-                }}
+                style={{ width: SCREEN_WIDTH * 0.6, height: 120 }}
                 resizeMode="contain"
               />
             </View>
@@ -211,11 +234,11 @@ export default function ConfirClienteScreen() {
                   marginTop: 10,
                 }}
               >
-                Revisa los datos antes de completar tu registro.
+                Revisa los datos antes de completar tu registro definitivo.
               </Text>
             </View>
 
-            {/* Tarjeta de Datos */}
+            {/* Tarjeta de Datos Mapeados */}
             <View
               style={{
                 backgroundColor: COLORS.cardBg,
@@ -237,7 +260,7 @@ export default function ConfirClienteScreen() {
                     width: 50,
                     height: 50,
                     borderRadius: 25,
-                    backgroundColor: "#4285F4",
+                    backgroundColor: COLORS.primaryBlue,
                     justifyContent: "center",
                     alignItems: "center",
                     marginRight: 15,
@@ -261,41 +284,74 @@ export default function ConfirClienteScreen() {
                 </View>
               </View>
 
-              <View style={{ marginBottom: 5 }}>
+              <View style={{ marginBottom: 15 }}>
                 <Text
-                  style={{ fontWeight: "bold", color: COLORS.textDarkBlue }}
+                  style={{
+                    fontWeight: "bold",
+                    color: COLORS.textDarkBlue,
+                    fontSize: 14,
+                  }}
                 >
                   Nombre
                 </Text>
-                <Text style={{ fontSize: 16, color: "#333", marginTop: 5 }}>
-                  {nombre}{" "}
-                  {/* <--- Edita aquí: Borra el nombre fijo y pon esto */}
+                <Text
+                  style={{
+                    fontSize: 16,
+                    color: "#333",
+                    marginTop: 4,
+                    fontWeight: "500",
+                  }}
+                >
+                  {nombre || "No proporcionado"}
                 </Text>
               </View>
 
               <View style={{ marginBottom: 15 }}>
                 <Text
-                  style={{ fontWeight: "bold", color: COLORS.textDarkBlue }}
+                  style={{
+                    fontWeight: "bold",
+                    color: COLORS.textDarkBlue,
+                    fontSize: 14,
+                  }}
                 >
-                  Empresa
+                  Empresa / Organización
                 </Text>
-                <Text style={{ fontSize: 16, color: "#333", marginTop: 5 }}>
-                  {empresa || "No especificada"}
+                <Text
+                  style={{
+                    fontSize: 16,
+                    color: "#333",
+                    marginTop: 4,
+                    fontWeight: "500",
+                  }}
+                >
+                  {empresa || "Particular"}
                 </Text>
               </View>
 
-              <View>
+              <View style={{ marginBottom: 5 }}>
                 <Text
-                  style={{ fontWeight: "bold", color: COLORS.textDarkBlue }}
+                  style={{
+                    fontWeight: "bold",
+                    color: COLORS.textDarkBlue,
+                    fontSize: 14,
+                  }}
                 >
-                  Área de interés
+                  Área de interés seleccionada
                 </Text>
-                <Text style={{ fontSize: 16, color: "#333", marginTop: 5 }}>
-                  {areaInteres}
+                <Text
+                  style={{
+                    fontSize: 16,
+                    color: "#333",
+                    marginTop: 4,
+                    fontWeight: "500",
+                  }}
+                >
+                  {areaInteres || "No seleccionada"}
                 </Text>
               </View>
             </View>
 
+            {/* Botón Volver a Editar */}
             <TouchableOpacity
               style={{
                 flexDirection: "row",
@@ -304,6 +360,7 @@ export default function ConfirClienteScreen() {
                 marginTop: 25,
               }}
               onPress={() => router.back()}
+              disabled={isSubmitting}
             >
               <Ionicons name="pencil" size={18} color="#4285F4" />
               <Text
@@ -313,21 +370,30 @@ export default function ConfirClienteScreen() {
               </Text>
             </TouchableOpacity>
 
+            {/* Botón Confirmar con Indicador de Carga */}
             <TouchableOpacity
               style={{
-                backgroundColor: COLORS.accentGold,
+                backgroundColor: isSubmitting
+                  ? COLORS.textBodyGrey
+                  : COLORS.accentGold,
                 paddingVertical: 18,
                 borderRadius: 15,
                 alignItems: "center",
                 marginTop: 30,
+                elevation: 2,
               }}
               onPress={handleNextStep}
+              disabled={isSubmitting}
             >
-              <Text
-                style={{ color: "#FFFFFF", fontSize: 18, fontWeight: "bold" }}
-              >
-                Confirmar y crear cuenta
-              </Text>
+              {isSubmitting ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Text
+                  style={{ color: "#FFFFFF", fontSize: 18, fontWeight: "bold" }}
+                >
+                  Confirmar y crear cuenta
+                </Text>
+              )}
             </TouchableOpacity>
           </ScrollView>
         </View>

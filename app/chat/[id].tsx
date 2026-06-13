@@ -64,12 +64,10 @@ export default function ChatScreen() {
         },
         (payload) => {
           const nuevoMsg = payload.new as Mensaje;
-
           setMensajes((prev) => {
             if (prev.some((m) => m.id === nuevoMsg.id)) return prev;
             return [nuevoMsg, ...prev];
           });
-
           if (nuevoMsg.emisor_id !== miUsuarioIdRef.current) {
             marcarComoLeido(nuevoMsg.id);
           }
@@ -136,7 +134,6 @@ export default function ChatScreen() {
 
       if (!msgsError && mensajesData) {
         setMensajes(mensajesData);
-
         const noLeidos = mensajesData.filter(
           (m) => m.emisor_id !== user.id && !m.leido,
         );
@@ -157,11 +154,10 @@ export default function ChatScreen() {
 
   async function enviarMensaje() {
     if (!nuevoMensaje.trim() || !miUsuarioId) return;
-
     const textoAEnviar = nuevoMensaje.trim();
     setNuevoMensaje("");
 
-    const idTemporal = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const idTemporal = `temp-${Date.now()}`;
     const mensajeOptimista: Mensaje = {
       id: idTemporal,
       texto: textoAEnviar,
@@ -177,7 +173,7 @@ export default function ChatScreen() {
         .from("mensajes")
         .insert([
           {
-            chat_id: chat_id,
+            chat_id,
             emisor_id: miUsuarioId,
             texto: textoAEnviar,
             leido: false,
@@ -187,15 +183,10 @@ export default function ChatScreen() {
         .single();
 
       if (error) throw error;
-
       const mensajeReal = data as Mensaje;
-
-      setMensajes((prev) => {
-        if (prev.some((m) => m.id === mensajeReal.id)) {
-          return prev.filter((m) => m.id !== idTemporal);
-        }
-        return prev.map((m) => (m.id === idTemporal ? mensajeReal : m));
-      });
+      setMensajes((prev) =>
+        prev.map((m) => (m.id === idTemporal ? mensajeReal : m)),
+      );
     } catch (err) {
       console.error("Error al enviar mensaje:", err);
       setMensajes((prev) => prev.filter((m) => m.id !== idTemporal));
@@ -203,19 +194,15 @@ export default function ChatScreen() {
   }
 
   const formatearHora = (fechaIso: string) => {
-    if (!fechaIso) return "";
     const fecha = new Date(fechaIso);
     return fecha.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   };
-
-  // Cálculo del offset vertical para evitar solapamientos con cabeceras de navegación
-  const keyboardVerticalOffset = Platform.OS === "ios" ? 90 : 0;
 
   return (
     <SafeAreaView style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
 
-      {/* HEADER */}
+      {/* HEADER LIMPIO */}
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
@@ -232,22 +219,12 @@ export default function ChatScreen() {
           </Text>
           <Text style={styles.headerStatus}>En línea</Text>
         </View>
-        <View style={styles.headerIcons}>
-          <TouchableOpacity>
-            <Ionicons name="call-outline" size={22} color={COLORS.white} />
-          </TouchableOpacity>
-          <TouchableOpacity>
-            <Ionicons name="videocam-outline" size={24} color={COLORS.white} />
-          </TouchableOpacity>
-        </View>
       </View>
 
-      {/* COMPONENTE CORRECTOR DEL TECLADO PARA ANDROID E IOS */}
       <KeyboardAvoidingView
         style={styles.keyboardContainer}
-        // Cambiamos a padding o height dependiendo de la respuesta de tu emulador/dispositivo
         behavior={Platform.OS === "ios" ? "padding" : "padding"}
-        keyboardVerticalOffset={keyboardVerticalOffset}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
       >
         {loading ? (
           <View style={styles.center}>
@@ -255,12 +232,10 @@ export default function ChatScreen() {
           </View>
         ) : (
           <FlatList
-            ref={flatListRef}
             data={mensajes}
-            keyExtractor={(item, index) => `${item.id}-${index}`}
+            keyExtractor={(item) => item.id}
             inverted
             contentContainerStyle={styles.chatContent}
-            showsVerticalScrollIndicator={false}
             renderItem={({ item }) => {
               const esMio = item.emisor_id === miUsuarioId;
               return (
@@ -311,34 +286,16 @@ export default function ChatScreen() {
           />
         )}
 
-        {/* INPUT DE TEXTO FIJADO AL BORDE INFERIOR */}
+        {/* INPUT DE TEXTO SIMPLIFICADO */}
         <View style={styles.inputContainer}>
-          <View style={styles.textInputWrapper}>
-            <TouchableOpacity style={styles.iconButton}>
-              <Ionicons
-                name="happy-outline"
-                size={24}
-                color={COLORS.textGray}
-              />
-            </TouchableOpacity>
-            <TextInput
-              style={styles.input}
-              placeholder="Escribe algo..."
-              placeholderTextColor={COLORS.textGray}
-              value={nuevoMensaje}
-              onChangeText={setNuevoMensaje}
-              multiline
-            />
-            <TouchableOpacity style={styles.iconButton}>
-              <Ionicons
-                name="attach-outline"
-                size={24}
-                color={COLORS.textGray}
-                style={styles.rotateIcon}
-              />
-            </TouchableOpacity>
-          </View>
-
+          <TextInput
+            style={styles.input}
+            placeholder="Escribe algo..."
+            placeholderTextColor={COLORS.textGray}
+            value={nuevoMensaje}
+            onChangeText={setNuevoMensaje}
+            multiline
+          />
           <TouchableOpacity
             style={[
               styles.sendButton,
@@ -361,7 +318,7 @@ export default function ChatScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  keyboardContainer: { flex: 1 }, // Asegura el comportamiento expansivo interno
+  keyboardContainer: { flex: 1 },
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
   header: {
     paddingTop:
@@ -371,7 +328,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 10,
-    elevation: 4,
   },
   backButton: { padding: 5 },
   avatarCircle: {
@@ -384,20 +340,9 @@ const styles = StyleSheet.create({
     marginLeft: 5,
   },
   avatarText: { color: COLORS.primaryBlue, fontWeight: "bold", fontSize: 18 },
-  headerInfo: { flex: 1, marginLeft: 10, justifyContent: "center" },
-  headerName: {
-    color: COLORS.white,
-    fontSize: 16,
-    fontWeight: "bold",
-    lineHeight: 20,
-  },
-  headerStatus: { color: "#E2E8F0", fontSize: 12, opacity: 0.9, marginTop: 1 },
-  headerIcons: {
-    flexDirection: "row",
-    gap: 18,
-    paddingHorizontal: 10,
-    alignItems: "center",
-  },
+  headerInfo: { flex: 1, marginLeft: 10 },
+  headerName: { color: COLORS.white, fontSize: 16, fontWeight: "bold" },
+  headerStatus: { color: "#E2E8F0", fontSize: 12, marginTop: 1 },
   chatContent: { paddingHorizontal: 12, paddingVertical: 10 },
   messageRow: { flexDirection: "row", marginVertical: 4, width: "100%" },
   rowLeft: { justifyContent: "flex-start" },
@@ -408,16 +353,10 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     paddingBottom: 4,
     borderRadius: 16,
-    position: "relative",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 1,
-    elevation: 1,
   },
   bubbleLeft: { backgroundColor: COLORS.bubbleLeft, borderTopLeftRadius: 2 },
   bubbleRight: { backgroundColor: COLORS.bubbleRight, borderTopRightRadius: 2 },
-  messageText: { fontSize: 15, lineHeight: 20 },
+  messageText: { fontSize: 15 },
   textDark: { color: COLORS.chatTextDark },
   textLight: { color: COLORS.chatTextLight },
   metaContainer: {
@@ -425,45 +364,31 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "flex-end",
     marginTop: 2,
-    alignSelf: "flex-end",
-    marginLeft: 25,
   },
   timeText: { fontSize: 10 },
   timeDark: { color: COLORS.textGray },
   timeLight: { color: "#93C5FD", opacity: 0.8 },
   inputContainer: {
     flexDirection: "row",
-    paddingHorizontal: 8,
-    paddingVertical: 8,
+    padding: 8,
     alignItems: "center",
-    backgroundColor: COLORS.white, // Mantiene la consistencia del color de fondo al subir
-  },
-  textInputWrapper: {
-    flex: 1,
-    flexDirection: "row",
     backgroundColor: COLORS.white,
-    borderRadius: 24,
-    alignItems: "center",
-    paddingHorizontal: 8,
-    minHeight: 48,
-    maxHeight: 100,
   },
   input: {
     flex: 1,
-    paddingHorizontal: 8,
+    backgroundColor: "#F1F5F9",
+    borderRadius: 20,
+    paddingHorizontal: 15,
+    paddingVertical: 10,
     fontSize: 16,
     color: COLORS.chatTextDark,
-    paddingTop: Platform.OS === "ios" ? 12 : 6,
-    paddingBottom: Platform.OS === "ios" ? 12 : 6,
+    marginRight: 8,
   },
-  iconButton: { padding: 6 },
-  rotateIcon: { transform: [{ rotate: "315deg" }] },
   sendButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     justifyContent: "center",
     alignItems: "center",
-    marginLeft: 6,
   },
 });

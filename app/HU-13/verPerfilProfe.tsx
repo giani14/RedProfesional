@@ -30,7 +30,6 @@ const COLORS = {
   pdfTagText: "#991B1B",
 };
 
-// Función para obtener las iniciales del nombre completo
 const obtenerIniciales = (nombre: string) => {
   if (!nombre) return "??";
   const partes = nombre.trim().split(/\s+/);
@@ -47,37 +46,74 @@ export default function VerPerfilProfesional() {
   const [portafolio, setPortafolio] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Estados añadidos para hidratación dinámica desde la BD
   const [rating, setRating] = useState({ promedio: 5.0, total: 0 });
   const [listaEspecialidades, setListaEspecialidades] = useState<string[]>([]);
 
   useEffect(() => {
     if (id) cargarTodo();
   }, [id]);
+  const iniciarChat = async () => {
+    try {
+      setLoading(true);
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // 1. Buscar si ya existe un chat
+      const { data: chatExistente } = await supabase
+        .from("chats")
+        .select("id")
+        .eq("cliente_id", user.id)
+        .eq("profesional_id", id)
+        .maybeSingle();
+
+      if (chatExistente) {
+        router.push(`/chat/${chatExistente.id}`);
+      } else {
+        // 2. Si no existe, creamos uno nuevo
+        const { data: nuevoChat, error } = await supabase
+          .from("chats")
+          .insert([{ cliente_id: user.id, profesional_id: id }])
+          .select("id")
+          .single();
+
+        if (error) throw error;
+        router.push(`/chat/${nuevoChat.id}`);
+      }
+    } catch (err) {
+      console.error("Error al iniciar chat:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+  // Convierte las rutas de los buckets en URLs públicas web
+  const resolverUrlImagen = (path: string) => {
+    if (!path) return "https://via.placeholder.com/150";
+    if (path.startsWith("http")) return path;
+
+    // Asegúrate de usar el nombre exacto de tu bucket de Storage en Supabase
+    const { data } = supabase.storage.from("portafolios").getPublicUrl(path);
+    return data?.publicUrl || "https://via.placeholder.com/150";
+  };
 
   const cargarTodo = async () => {
     try {
       setLoading(true);
 
-      // 1. QUERY CORREGIDA: Trae perfiles, info técnica, categorías puente y ratings con nombres reales de la BD
+      // 1. Consulta del perfil e info técnica (esto sí tiene relación definida)
       const { data: perfilData, error: pError } = await supabase
         .from("perfiles")
         .select(
           `
-          *, 
-          profesionales_info (
-            *,
-            profesional_categorias (
-              categorias (
-                nombre
-              )
-            ),
-            profesionales_rating (
-              promedio,
-              total_reviews
-            )
-          )
-        `,
+        *,
+        profesionales_info (
+          titulo_especialidad,
+          biografia,
+          experiencia,
+          descripcion
+        )
+      `,
         )
         .eq("id", id)
         .single();
@@ -85,45 +121,36 @@ export default function VerPerfilProfesional() {
       if (pError) throw pError;
       setPerfil(perfilData);
 
-      // Procesar información de especialidades/categorías relacionales
-      const infoTecnica =
-        perfilData?.profesionales_info?.[0] || perfilData?.profesionales_info;
+      // 2. CONSULTA SEPARADA para el rating (Sin depender de relaciones fallidas)
+      const { data: ratingData, error: rError } = await supabase
+        .from("profesionales_rating")
+        .select("promedio, total_reviews")
+        .eq("profesional_id", id)
+        .maybeSingle(); // Usamos maybeSingle porque puede que el profesional aún no tenga ratings
 
-      if (infoTecnica) {
-        // Extraer categorías asignadas
-        const cats =
-          infoTecnica.profesional_categorias
-            ?.map((pc: any) => pc.categorias?.nombre)
-            .filter(Boolean) || [];
-
-        // Si no tiene categorías en el puente, usamos el string 'titulo_especialidad' cortado por comas
-        if (cats.length > 0) {
-          setListaEspecialidades(cats);
-        } else if (infoTecnica.titulo_especialidad) {
-          setListaEspecialidades([infoTecnica.titulo_especialidad]);
-        } else {
-          setListaEspecialidades(["Especialista General"]);
-        }
-
-        // Extraer ratings reales corregidos de la BD
-        const rData = infoTecnica.profesionales_rating?.[0] || {};
+      if (!rError && ratingData) {
         setRating({
-          promedio: rData.promedio ?? 5.0,
-          total: rData.total_reviews ?? 0,
+          promedio: ratingData.promedio ?? 5.0,
+          total: ratingData.total_reviews ?? 0,
         });
       }
 
-      // 2. QUERY PORTAFOLIO
+      // 3. Consulta Portafolio (Ya la tienes funcionando)
       const { data: portaData, error: portaError } = await supabase
         .from("portafolios")
-        .select("*")
+        .select(
+          `
+        id, titulo, portada_url, created_at,
+        portafolio_archivos (archivo_url, tipo)
+      `,
+        )
         .eq("profesional_id", id)
         .limit(3);
 
       if (portaError) throw portaError;
       setPortafolio(portaData || []);
     } catch (err) {
-      console.error("Error cargando perfil completo:", err);
+      console.error("Error cargando perfil:", err);
     } finally {
       setLoading(false);
     }
@@ -137,7 +164,6 @@ export default function VerPerfilProfesional() {
     );
   }
 
-  // Desestructuración limpia de la información técnica extraída
   const infoMedica = Array.isArray(perfil?.profesionales_info)
     ? perfil?.profesionales_info[0]
     : perfil?.profesionales_info;
@@ -168,10 +194,9 @@ export default function VerPerfilProfesional() {
         {/* TARJETA PRINCIPAL (HERO) */}
         <View style={styles.whiteCard}>
           <View style={styles.heroRow}>
-            {/* CAMBIO AQUÍ: Renderizado condicional del Avatar (Foto o Iniciales) */}
             {perfil?.avatar_url ? (
               <Image
-                source={{ uri: perfil.avatar_url }}
+                source={{ uri: resolverUrlImagen(perfil.avatar_url) }}
                 style={styles.mainAvatar}
               />
             ) : (
@@ -212,7 +237,6 @@ export default function VerPerfilProfesional() {
               "Profesional comprometido con la calidad y el cumplimiento en cada proyecto."}
           </Text>
 
-          {/* STATS GRID DINÁMICO */}
           <View style={styles.statsGrid}>
             <StatItem
               val={
@@ -223,7 +247,7 @@ export default function VerPerfilProfesional() {
               lab="Años de experiencia"
             />
             <StatItem val="--" lab="Servicios realizados" />
-            <StatItem val="100%" lab="Clientes satisfechos" />
+            <StatItem val="0%" lab="Clientes satisfechos" />
             <StatItem val="24 h" lab="Respuesta promedio" />
           </View>
         </View>
@@ -244,7 +268,7 @@ export default function VerPerfilProfesional() {
           </Text>
         </SectionItem>
 
-        {/* SECCIÓN ESPECIALIDADES DINÁMICAS */}
+        {/* SECCIÓN ESPECIALIDADES */}
         <SectionItem
           icon={
             <Ionicons
@@ -264,7 +288,7 @@ export default function VerPerfilProfesional() {
           </View>
         </SectionItem>
 
-        {/* SECCIÓN PORTAFOLIO */}
+        {/* SECCIÓN PORTAFOLIO ADAPTADA */}
         <View style={styles.whiteCardSection}>
           <View style={styles.sectionTitleRow}>
             <Ionicons
@@ -285,48 +309,54 @@ export default function VerPerfilProfesional() {
               No hay proyectos registrados en el portafolio aún.
             </Text>
           ) : (
-            portafolio.map((item, index) => (
-              <View key={index} style={styles.portItem}>
-                <Image
-                  source={{
-                    uri:
-                      item.url_previsualizacion ||
-                      "https://via.placeholder.com/150",
-                  }}
-                  style={styles.portImg}
-                />
-                <View style={styles.portContent}>
-                  <Text style={styles.portTitle} numberOfLines={2}>
-                    {item.titulo}
-                  </Text>
-                  <View style={styles.tagDateRow}>
-                    <View
-                      style={[
-                        styles.tag,
-                        item.tipo === "pdf" ? styles.tagPdf : styles.tagImg,
-                      ]}
-                    >
-                      <Text
+            portafolio.map((item, index) => {
+              // Extraemos el primer archivo del array de la relación, o usamos la portada general del proyecto
+              const primerArchivo = item.portafolio_archivos?.[0];
+              const rutaImagen = primerArchivo?.archivo_url || item.portada_url;
+              const tipoArchivo = primerArchivo?.tipo || "imagen";
+
+              return (
+                <View key={index} style={styles.portItem}>
+                  <Image
+                    source={{ uri: resolverUrlImagen(rutaImagen) }}
+                    style={styles.portImg}
+                    resizeMode="cover"
+                  />
+                  <View style={styles.portContent}>
+                    <Text style={styles.portTitle} numberOfLines={2}>
+                      {item.titulo}
+                    </Text>
+                    <View style={styles.tagDateRow}>
+                      <View
                         style={[
-                          styles.tagText,
-                          item.tipo === "pdf"
-                            ? { color: COLORS.pdfTagText }
-                            : { color: COLORS.imgTagText },
+                          styles.tag,
+                          tipoArchivo === "pdf" ? styles.tagPdf : styles.tagImg,
                         ]}
                       >
-                        {item.tipo === "pdf" ? "PDF" : "Imagen"}
+                        <Text
+                          style={[
+                            styles.tagText,
+                            tipoArchivo === "pdf"
+                              ? { color: COLORS.pdfTagText }
+                              : { color: COLORS.imgTagText },
+                          ]}
+                        >
+                          {tipoArchivo === "pdf" ? "PDF" : "Imagen"}
+                        </Text>
+                      </View>
+                      <Text style={styles.portDate}>
+                        {item.created_at
+                          ? new Date(item.created_at).toLocaleDateString()
+                          : "Reciente"}
                       </Text>
                     </View>
-                    <Text style={styles.portDate}>
-                      {item.fecha_formateada || "Reciente"}
-                    </Text>
                   </View>
                 </View>
-              </View>
-            ))
+              );
+            })
           )}
 
-          {portafolio.length > 0 && (
+          {/*portafolio.length > 0 && (
             <TouchableOpacity style={styles.fullWidthGrayBtn}>
               <Text style={styles.grayBtnText}>
                 Ver todo el portafolio ({portafolio.length})
@@ -337,7 +367,7 @@ export default function VerPerfilProfesional() {
                 color={COLORS.primaryBlue}
               />
             </TouchableOpacity>
-          )}
+          )*/}
         </View>
 
         {/* SECCIÓN RESEÑAS */}
@@ -366,14 +396,14 @@ export default function VerPerfilProfesional() {
               ))}
             </View>
           </View>
-          <TouchableOpacity style={styles.fullWidthGrayBtn}>
+          {/*<TouchableOpacity style={styles.fullWidthGrayBtn}>
             <Text style={styles.grayBtnText}>Ver todas las opiniones</Text>
             <Ionicons
               name="chevron-forward"
               size={16}
               color={COLORS.primaryBlue}
             />
-          </TouchableOpacity>
+          </TouchableOpacity>*/}
         </View>
 
         {/* BOTONES DE ACCIÓN FINALES */}
@@ -398,9 +428,7 @@ export default function VerPerfilProfesional() {
 
           <TouchableOpacity
             style={styles.btnOutline}
-            onPress={() =>
-              alert(`Iniciando chat con ${perfil?.nombre_completo}...`)
-            }
+            onPress={iniciarChat} // <--- CAMBIA ESTO
           >
             <Ionicons
               name="chatbubble-ellipses-outline"
@@ -443,7 +471,6 @@ const SectionItem = ({ icon, title, children }: any) => (
     {children}
   </View>
 );
-
 const styles = StyleSheet.create({
   mainContainer: { flex: 1, backgroundColor: "#F3F4F6" },
   loaderContainer: { flex: 1, justifyContent: "center", alignItems: "center" },

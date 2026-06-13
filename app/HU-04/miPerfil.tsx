@@ -19,7 +19,39 @@ export default function MiPerfil() {
   const [perfil, setPerfil] = useState<any>(null);
   const [cargando, setCargando] = useState(true);
   const [rol, setRol] = useState("");
+  const [actividad, setActividad] = useState({
+    proyectos: 0,
+    colaboraciones: 0,
+    calificacion: 0,
+  });
+  const obtenerActividad = async (userId: string) => {
+    // 1. Contar proyectos (basado en solicitudes_servicio)
+    const { count: countProyectos } = await supabase
+      .from("solicitudes_servicio")
+      .select("*", { count: "exact", head: true })
+      .eq("cliente_id", userId);
 
+    // 2. Contar colaboraciones (basado en propuestas_servicio aceptadas)
+    // Nota: si las propuestas son aceptadas, se relacionan con el profesional
+    const { count: countColaboraciones } = await supabase
+      .from("propuestas_servicio")
+      .select("*", { count: "exact", head: true })
+      .eq("profesional_id", userId)
+      .eq("estado", "aceptada"); // Ajusta el string según el valor real en tu DB
+
+    // 3. Obtener promedio de calificación
+    const { data: ratingData } = await supabase
+      .from("profesionales_rating")
+      .select("promedio")
+      .eq("profesional_id", userId)
+      .single();
+
+    return {
+      proyectos: countProyectos || 0,
+      colaboraciones: countColaboraciones || 0,
+      calificacion: ratingData?.promedio || 0,
+    };
+  };
   const obtenerDatosPerfil = async () => {
     try {
       setCargando(true);
@@ -30,17 +62,38 @@ export default function MiPerfil() {
 
       if (!user) return;
 
-      // PERFIL NORMAL
+      // 1. Obtener Perfil e Info Profesional (relacional)
       const { data: perfilData } = await supabase
         .from("perfiles")
-        .select("*")
+        .select(
+          `
+          *,
+          profesionales_info (
+            titulo_especialidad,
+            experiencia,
+            descripcion
+          )
+        `,
+        )
         .eq("id", user.id)
         .single();
 
-      // INFO PROFESIONAL
-      const { data: infoProfesional } = await supabase
-        .from("profesionales_info")
-        .select("*")
+      // 2. Obtener Actividad (Proyectos y Colaboraciones)
+      const { count: countProyectos } = await supabase
+        .from("solicitudes_servicio")
+        .select("*", { count: "exact", head: true })
+        .eq("cliente_id", user.id);
+
+      const { count: countColaboraciones } = await supabase
+        .from("propuestas_servicio")
+        .select("*", { count: "exact", head: true })
+        .eq("profesional_id", user.id)
+        .eq("estado", "aceptada"); // Verifica que este string coincida con tu DB
+
+      // 3. Obtener Calificación
+      const { data: ratingData } = await supabase
+        .from("profesionales_rating")
+        .select("promedio")
         .eq("profesional_id", user.id)
         .single();
 
@@ -48,15 +101,22 @@ export default function MiPerfil() {
         setPerfil({
           ...perfilData,
           email: user.email,
-          profesion: infoProfesional?.titulo_especialidad || "",
-          experiencia: infoProfesional?.experiencia || "",
-          descripcion: infoProfesional?.descripcion || "",
+          profesion: perfilData.profesionales_info?.titulo_especialidad || "",
+          experiencia: perfilData.profesionales_info?.experiencia || "",
+          descripcion: perfilData.profesionales_info?.descripcion || "",
+        });
+
+        // Guardamos los estados de actividad
+        setActividad({
+          proyectos: countProyectos || 0,
+          colaboraciones: countColaboraciones || 0,
+          calificacion: ratingData?.promedio || 0,
         });
 
         setRol(perfilData.rol || "cliente");
       }
     } catch (error) {
-      console.log("ERROR PERFIL:", error);
+      console.error("ERROR PERFIL:", error);
     } finally {
       setCargando(false);
     }
@@ -308,19 +368,20 @@ export default function MiPerfil() {
         <Text style={styles.tituloSeccion}>Mi actividad</Text>
         <View style={styles.contenedorStats}>
           <View style={styles.cajaStat}>
-            <Text style={styles.numeroStat}>12</Text>
+            <Text style={styles.numeroStat}>{actividad.proyectos}</Text>
             <Text style={styles.nombreStat}>Proyectos</Text>
           </View>
           <View style={styles.cajaStat}>
-            <Text style={styles.numeroStat}>8</Text>
+            <Text style={styles.numeroStat}>{actividad.colaboraciones}</Text>
             <Text style={styles.nombreStat}>Colaboraciones</Text>
           </View>
           <View style={styles.cajaStat}>
-            <Text style={styles.numeroStat}>4.9</Text>
+            <Text style={styles.numeroStat}>
+              {actividad.calificacion.toFixed(1)}
+            </Text>
             <Text style={styles.nombreStat}>Calificación</Text>
           </View>
         </View>
-
         <TouchableOpacity
           style={styles.btnEditar}
           onPress={() => router.push("/HU-04/EditarPerfilCliente")}

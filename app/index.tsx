@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabase"; // Ajusta según tu estructura
+import { supabase } from "@/lib/supabase";
 import { Redirect } from "expo-router";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, View } from "react-native";
@@ -9,7 +9,6 @@ export default function Index() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // 1. Obtener sesión y rol inicial
     const initializeAuth = async () => {
       const {
         data: { session },
@@ -25,7 +24,6 @@ export default function Index() {
 
     initializeAuth();
 
-    // 2. Escuchar cambios de estado (Login/Logout)
     const { data: authListener } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
         setSession(session);
@@ -43,19 +41,22 @@ export default function Index() {
     };
   }, []);
 
-  // Función para consultar el rol en tu base de datos
   const fetchUserRole = async (userId: string) => {
     try {
-      // Ajusta 'perfiles' y 'rol' a los nombres reales de tu tabla en Supabase
       const { data, error } = await supabase
         .from("perfiles")
         .select("rol")
         .eq("id", userId)
-        .single();
+        .maybeSingle(); // Usamos maybeSingle() para que no explote si la fila está creándose
 
-      if (data) setRole(data.rol);
+      if (data && data.rol !== undefined) {
+        setRole(data.rol);
+      } else {
+        setRole(null);
+      }
     } catch (error) {
-      console.error("Error obteniendo rol:", error);
+      console.error("Error obteniendo rol en Index:", error);
+      setRole(null);
     } finally {
       setLoading(false);
     }
@@ -63,28 +64,47 @@ export default function Index() {
 
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+      <View
+        style={{
+          flex: 1,
+          justifyContent: "center",
+          alignItems: "center",
+          backgroundColor: "#fff",
+        }}
+      >
         <ActivityIndicator size="large" color="#FFB100" />
       </View>
     );
   }
 
-  // --- LÓGICA DE REDIRECCIÓN INTELIGENTE ---
+  // --- LÓGICA DE REDIRECCIÓN INTELIGENTE CORREGIDA ---
 
-  // Si no hay sesión, al Login
+  // 1. Si no hay sesión activa, mandamos a la bienvenida nativa
   if (!session) {
     return <Redirect href="/HU-00/Bienvenida" />;
-    //return <Redirect href="/HU-02/login" />;
   }
 
-  // Si hay sesión, redirigir según el Rol
-  switch (role) {
-    case "Administrador":
+  // 2. Si hay sesión pero el rol es NULL o vacío (Es su primera vez con Google)
+  if (!role) {
+    console.log(
+      "Sesión activa detectada en Index pero sin rol. Enviando a selección de rol...",
+    );
+    return <Redirect href="/HU-05/selRol" />;
+  }
+
+  // 3. Si ya es su segunda vez y tiene rol aclarado, lo mandamos a su Home real
+  const cleanRole = role.toLowerCase().trim();
+
+  switch (cleanRole) {
+    case "administrador":
+    case "admin":
       return <Redirect href="/(admin)" />;
-    case "Profesional":
+    case "profesional":
       return <Redirect href="/(profesional)" />;
-    case "Cliente":
-    default:
+    case "cliente":
       return <Redirect href="/(cliente)" />;
+    default:
+      // Salvaguarda por si tiene guardado un rol inválido o en mayúsculas raras
+      return <Redirect href="/HU-05/selRol" />;
   }
 }

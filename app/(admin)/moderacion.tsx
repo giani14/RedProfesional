@@ -64,30 +64,24 @@ export default function ModeracionScreen() {
 
   // Obtener los contadores dinámicos desde Supabase
   async function fetchContadores() {
-    try {
-      const { count: pend } = await supabase
-        .from("profesionales_info")
-        .select("*", { count: "exact", head: true })
-        .in("estado_verificacion", ["Pendiente", "No verificado"]);
+    const { count: pend } = await supabase
+      .from("profesionales_info")
+      .select("*", { count: "exact", head: true })
+      .in("estado_verificacion", ["Pendiente", "No verificado"]);
+    const { count: rep } = await supabase
+      .from("reportes")
+      .select("*", { count: "exact", head: true })
+      .eq("estado", "pendiente");
+    const { count: verif } = await supabase
+      .from("profesionales_info")
+      .select("*", { count: "exact", head: true })
+      .eq("estado_verificacion", "Verificado");
 
-      const { count: rep } = await supabase
-        .from("reportes")
-        .select("*", { count: "exact", head: true })
-        .eq("estado", "pendiente");
-
-      const { count: verif } = await supabase
-        .from("profesionales_info")
-        .select("*", { count: "exact", head: true })
-        .eq("estado_verificacion", "Verificado");
-
-      setTotales({
-        pendientes: pend || 0,
-        reportados: rep || 0,
-        aprobados: verif || 0,
-      });
-    } catch (err) {
-      console.error("Error cargando contadores:", err);
-    }
+    setTotales({
+      pendientes: pend || 0,
+      reportados: rep || 0,
+      aprobados: verif || 0,
+    });
   }
 
   // Traer la data dependiendo de la sección activa
@@ -96,102 +90,65 @@ export default function ModeracionScreen() {
       setLoading(true);
 
       if (filtro === "Reportados") {
-        // 1. Traemos los reportes pendientes de la base de datos
-        const { data: reportesData, error: reportesError } = await supabase
+        // CORRECCIÓN: Consulta directa para asegurar que carga el reporte y sus relaciones
+        const { data, error } = await supabase
           .from("reportes")
-          .select("id, motivo, descripcion, created_at, denunciado_id")
+          .select(
+            `
+            id, motivo, descripcion, created_at, denunciado_id,
+            perfiles (nombre_completo, telefono, ciudad),
+            profesionales_info (titulo_especialidad, descripcion, url_certificado, estado_verificacion)
+          `,
+          )
           .eq("estado", "pendiente");
 
-        if (reportesError) throw reportesError;
+        if (error) throw error;
 
-        if (!reportesData || reportesData.length === 0) {
-          setItems([]);
-          return;
-        }
-
-        const denunciadosIds = reportesData.map((rep) => rep.denunciado_id);
-
-        // 2. Traemos los perfiles personales mapeados
-        const { data: perfilesData, error: perfilesError } = await supabase
-          .from("perfiles")
-          .select("id, nombre_completo, telefono, ciudad")
-          .in("id", denunciadosIds);
-
-        if (perfilesError) throw perfilesError;
-
-        // 3. Traemos la info profesional usando 'profesional_id'
-        const { data: profesionalesData, error: profesionalesError } =
-          await supabase
-            .from("profesionales_info")
-            .select(
-              "profesional_id, titulo_especialidad, descripcion, url_certificado, estado_verificacion",
-            )
-            .in("profesional_id", denunciadosIds);
-
-        if (profesionalesError) throw profesionalesError;
-
-        // 4. Mapeo estructural y blindado
-        const mappedReports: ProfesionalModeracion[] = reportesData.map(
-          (rep) => {
-            const perfil = perfilesData?.find(
-              (p) => p.id === rep.denunciado_id,
-            );
-            const prof = profesionalesData?.find(
-              (p) => p.profesional_id === rep.denunciado_id,
-            );
-
-            return {
-              id: rep.id,
-              profesional_id: rep.denunciado_id,
-              titulo_especialidad:
-                prof?.titulo_especialidad || "Especialidad no definida",
-              descripcion: prof?.descripcion || "Sin descripción",
-              url_certificado: prof?.url_certificado || "",
-              estado_verificacion:
-                (prof?.estado_verificacion as any) || "Rechazado",
-              perfiles: {
-                nombre_completo: perfil?.nombre_completo || "Usuario reportado",
-                telefono: perfil?.telefono || "S/T",
-                ciudad: perfil?.ciudad || "No especificada",
-              },
-              reporte_id: rep.id,
-              motivo_reporte: rep.motivo,
-              descripcion_reporte: rep.descripcion,
-              fecha_reporte: rep.created_at,
-            };
-          },
+        const mappedReports: ProfesionalModeracion[] = (data || []).map(
+          (rep: any) => ({
+            id: rep.id,
+            profesional_id: rep.denunciado_id,
+            titulo_especialidad:
+              rep.profesionales_info?.titulo_especialidad ||
+              "Especialidad no definida",
+            descripcion:
+              rep.profesionales_info?.descripcion || "Sin descripción",
+            url_certificado: rep.profesionales_info?.url_certificado || "",
+            estado_verificacion:
+              rep.profesionales_info?.estado_verificacion || "Rechazado",
+            perfiles: {
+              nombre_completo:
+                rep.perfiles?.nombre_completo || "Usuario reportado",
+              telefono: rep.perfiles?.telefono || "S/T",
+              ciudad: rep.perfiles?.ciudad || "No especificada",
+            },
+            reporte_id: rep.id,
+            motivo_reporte: rep.motivo,
+            descripcion_reporte: rep.descripcion,
+            fecha_reporte: rep.created_at,
+          }),
         );
 
         setItems(mappedReports);
       } else {
-        // --- SECCIÓN PENDIENTES Y APROBADOS ---
+        // Mantenemos la lógica original para Pendientes y Aprobados
         let query = supabase.from("profesionales_info").select(`
-          profesional_id,
-          titulo_especialidad,
-          descripcion,
-          url_certificado,
-          estado_verificacion,
-          perfiles (
-            nombre_completo,
-            telefono,
-            ciudad
-          )
+          profesional_id, titulo_especialidad, descripcion, url_certificado, estado_verificacion,
+          perfiles (nombre_completo, telefono, ciudad)
         `);
 
-        if (filtro === "Pendiente") {
+        if (filtro === "Pendiente")
           query = query.in("estado_verificacion", [
             "Pendiente",
             "No verificado",
           ]);
-        } else {
-          query = query.eq("estado_verificacion", filtro);
-        }
+        else query = query.eq("estado_verificacion", filtro);
 
         const { data, error } = await query;
         if (error) throw error;
 
-        if (data) {
-          const mappedData: ProfesionalModeracion[] = data.map((item: any) => ({
+        setItems(
+          (data || []).map((item: any) => ({
             id: item.profesional_id,
             profesional_id: item.profesional_id,
             titulo_especialidad: item.titulo_especialidad,
@@ -199,13 +156,12 @@ export default function ModeracionScreen() {
             url_certificado: item.url_certificado || "",
             estado_verificacion: item.estado_verificacion,
             perfiles: item.perfiles,
-          }));
-          setItems(mappedData);
-        }
+          })),
+        );
       }
     } catch (error: any) {
-      console.error("Error cargando moderación:", error.message);
-      Alert.alert("Error", "No se pudo sincronizar la data.");
+      console.error("Error cargando reportes:", error);
+      Alert.alert("Error", "No se pudo sincronizar la lista de reportados.");
     } finally {
       setLoading(false);
     }

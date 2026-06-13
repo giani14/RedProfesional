@@ -168,11 +168,22 @@ export default function SelectRoleScreen() {
     try {
       const rolTexto = selectedRole === 0 ? "Cliente" : "Profesional";
 
-      // Guardar en Supabase
-      const { error } = await supabase
-        .from("perfiles")
-        .update({ rol: rolTexto })
-        .eq("id", userId);
+      // OBTENER EL EMAIL ACTUAL DE LA SESIÓN (Por si es un registro nuevo de Google)
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      const userEmail = user?.email || "";
+
+      // USAMOS UPSERT: Si el perfil no existe lo crea, si ya existe solo modifica el rol.
+      // Así salvamos los registros directos desde OAuth Google sin fallos.
+      const { error } = await supabase.from("perfiles").upsert(
+        {
+          id: userId,
+          rol: rolTexto,
+          email: userEmail, // Mantenemos el registro limpio vinculando el correo
+        },
+        { onConflict: "id" },
+      ); // Valida conflictos basándose en la llave primaria (id)
 
       if (error) throw error;
 
@@ -183,7 +194,7 @@ export default function SelectRoleScreen() {
         router.push("/HU-05/infoProfe");
       }
     } catch (error: any) {
-      console.error("Error al actualizar el rol:", error.message);
+      console.error("Error al guardar el rol con upsert:", error.message);
       alert(`No se pudo guardar tu elección: ${error.message}`);
     } finally {
       setIsLoading(false); // Liberamos el estado de carga

@@ -69,13 +69,8 @@ export default function HU09SubirPortafolio() {
 
       // 2. Consulta limpia: Traemos los campos reales de tu tabla 'perfiles'
       const { data, error: errorBD } = await supabase
-<<<<<<< HEAD
-        .from("profesionales_info")
-        .select("id, nombre, apellido, rol_or_profesion, ciudad")
-=======
         .from("perfiles")
         .select("id, nombre_completo, rol, ciudad")
->>>>>>> menu-añadido
         .eq("id", user.id)
         .maybeSingle();
 

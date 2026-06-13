@@ -56,6 +56,7 @@ export default function HU09SubirPortafolio() {
     try {
       setCargandoPerfil(true);
 
+      // 1. Obtener la sesión del usuario activo
       const {
         data: { user },
         error: errorAuth,
@@ -66,16 +67,29 @@ export default function HU09SubirPortafolio() {
         return;
       }
 
+      // 2. Consulta limpia: Traemos los campos reales de tu tabla 'perfiles'
       const { data, error: errorBD } = await supabase
+<<<<<<< HEAD
         .from("profesionales_info")
         .select("id, nombre, apellido, rol_or_profesion, ciudad")
+=======
+        .from("perfiles")
+        .select("id, nombre_completo, rol, ciudad")
+>>>>>>> menu-añadido
         .eq("id", user.id)
-        .single();
+        .maybeSingle();
 
       if (errorBD) {
-        console.error("Error al obtener perfil de la BD:", errorBD);
+        console.error("Error al obtener perfil de la BD:", errorBD.message);
       } else if (data) {
-        setPerfil(data);
+        // 3. Mapeamos los datos de tu BD al formato que espera tu componente
+        setPerfil({
+          id: data.id,
+          nombre: data.nombre_completo || "Usuario",
+          apellido: "", // Lo dejamos vacío porque ya tienes el nombre completo arriba
+          rol_or_profesion: data.rol || "Profesión no especificada",
+          ciudad: data.ciudad || "Ubicación no especificada",
+        });
       }
     } catch (error) {
       console.error("Error en flujo de perfil:", error);
@@ -184,19 +198,14 @@ export default function HU09SubirPortafolio() {
       setArchivos([]);
       setMostrarFormulario(false);
       setMostrarExito(true);
-      setSubiendo(false);
-
-      Alert.alert(
-        "Portafolio subido",
-        "Tu trabajo fue agregado correctamente.",
-      );
     } catch (error) {
       console.error(error);
-      setSubiendo(false);
       Alert.alert(
         "Error",
         "No se pudo guardar el portafolio en la base de datos.",
       );
+    } finally {
+      setSubiendo(false);
     }
   };
 
@@ -242,7 +251,6 @@ export default function HU09SubirPortafolio() {
               </View>
             )}
 
-            {/* CORREGIDO: Tarjeta de perfil conectada dinámicamente a Supabase */}
             {cargandoPerfil ? (
               <View
                 style={[
@@ -288,7 +296,6 @@ export default function HU09SubirPortafolio() {
                   Tus trabajos publicados
                 </Text>
               </View>
-
               <Text style={styles.portfolioCount}>
                 {trabajosGuardados.length} trabajo(s)
               </Text>
@@ -315,9 +322,14 @@ export default function HU09SubirPortafolio() {
                     <Text style={styles.portfolioItemTitle} numberOfLines={1}>
                       {trabajo.titulo}
                     </Text>
-
-                    <Text style={styles.portfolioItemCategory}>
-                      {descripcion ? "Publicado" : "Sin descripción"}
+                    {/* CORREGIDO: Ahora lee la descripción individual de cada trabajo guardado */}
+                    <Text
+                      style={styles.portfolioItemCategory}
+                      numberOfLines={1}
+                    >
+                      {trabajo.descripcion
+                        ? trabajo.descripcion
+                        : "Sin descripción"}
                     </Text>
                   </View>
 
@@ -354,7 +366,7 @@ export default function HU09SubirPortafolio() {
 
             <Text style={styles.title}>Agrega trabajos a tu portafolio</Text>
             <Text style={styles.subtitle}>
-              Sube imágenes o documentos para mostrar tu experience.
+              Sube imágenes o documentos para mostrar tu experiencia.
             </Text>
 
             <View style={styles.formCard}>
@@ -370,7 +382,7 @@ export default function HU09SubirPortafolio() {
               <Text style={styles.label}>Descripción</Text>
               <TextInput
                 style={[styles.input, styles.textArea]}
-                placeholder="Proyecto de instalación completa de cableado, tableros y luminarias para vivienda familiar."
+                placeholder="Proyecto de instalación completa de cableado..."
                 placeholderTextColor="#9CA3AF"
                 value={descripcion}
                 onChangeText={setDescripcion}

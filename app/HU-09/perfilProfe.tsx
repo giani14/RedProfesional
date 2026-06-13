@@ -1,4 +1,4 @@
-import { listarMisPortafolios, PortafolioDB } from "@/lib/portafolioService"; // 👈 Importamos el servicio existente
+import { listarMisPortafolios, PortafolioDB } from "@/lib/portafolioService";
 import { supabase } from "@/lib/supabase";
 import { Ionicons } from "@expo/vector-icons";
 import { router, Stack } from "expo-router";
@@ -100,7 +100,7 @@ const PortfolioCard = ({
 export default function PerfilProfesional() {
   const [loading, setLoading] = useState(true);
   const [userData, setUserData] = useState<any>(null);
-  const [misTrabajos, setMisTrabajos] = useState<PortafolioDB[]>([]); // 👈 Estado para los trabajos reales
+  const [misTrabajos, setMisTrabajos] = useState<PortafolioDB[]>([]);
 
   useEffect(() => {
     cargarDatosCompletos();
@@ -113,37 +113,57 @@ export default function PerfilProfesional() {
       // 1. Obtener el usuario autenticado desde Supabase Auth
       const {
         data: { user },
+        error: authError,
       } = await supabase.auth.getUser();
 
-      if (user) {
-        // 2. Traer el perfil agregando campos de métricas si existen (ej: rating, proyectos_completados)
-        const { data: perfilData, error: perfilError } = await supabase
-          .from("profesionales_info")
-          .select(
-            "id, nombre, apellido, rol_or_profesion, ciudad, avatar_url, biografia, rating, proyectos_totales",
-          ) // 👈 Agrega tus columnas aquí
-          .eq("id", user.id)
-          .single();
-
-        if (perfilError) {
-          console.warn(
-            "Aviso: El ID de Auth no se encuentra en la tabla profesionales_info. Crea el registro en tu BD.",
-          );
-          throw perfilError;
-        }
-
-        setUserData(perfilData);
-
-        // 3. Traer los trabajos publicados reales desde el servicio
-        const listaTrabajos = await listarMisPortafolios();
-        setMisTrabajos(listaTrabajos);
+      if (authError || !user) {
+        console.warn("No se encontró sesión activa");
+        return;
       }
+
+      // 2. Consulta A: Extraer información general desde la tabla 'perfiles'
+      const { data: generalData, error: generalError } = await supabase
+        .from("perfiles")
+        .select("nombre_completo, ciudad, avatar_url")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (generalError)
+        console.error("Error en tabla perfiles:", generalError.message);
+
+      // 3. Consulta B: Extraer información laboral/métrica desde 'profesionales_info'
+      const { data: infoLaboralData, error: infoLaboralError } = await supabase
+        .from("profesionales_info")
+        .select("titulo_especialidad, biografia")
+        .eq("profesional_id", user.id) // 👈 CORREGIDO: Se enlaza mediante profesional_id
+        .maybeSingle();
+
+      if (infoLaboralError)
+        console.error("Error en profesionales_info:", infoLaboralError.message);
+
+      // 4. Consolidamos ambos resultados en un solo objeto limpio para la UI
+      setUserData({
+        nombre_completo: generalData?.nombre_completo || "Usuario Profesional",
+        ciudad: generalData?.ciudad || "Cochabamba, Bolivia",
+        avatar_url: generalData?.avatar_url,
+        titulo_especialidad:
+          infoLaboralData?.titulo_especialidad || "Profesión no definida",
+        biografia:
+          infoLaboralData?.biografia ||
+          "Profesional comprometido con la calidad y la seguridad.",
+        rating: infoLaboralData?.rating || 0.0,
+      });
+
+      // 5. Traer los trabajos publicados reales desde el servicio
+      const listaTrabajos = await listarMisPortafolios();
+      setMisTrabajos(listaTrabajos || []);
     } catch (error) {
       console.error("Error sincronizando el perfil con la BD:", error);
     } finally {
       setLoading(false);
     }
   };
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -200,9 +220,7 @@ export default function PerfilProfesional() {
 
             <View style={styles.textContainer}>
               <Text style={styles.userNameText}>
-                {userData
-                  ? `${userData.nombre} ${userData.apellido || ""}`
-                  : "Usuario No Registrado"}
+                {userData?.nombre_completo}
               </Text>
               <View style={styles.subInfoRow}>
                 <Ionicons
@@ -211,7 +229,7 @@ export default function PerfilProfesional() {
                   color={COLORS.primaryBlue}
                 />
                 <Text style={styles.roleText}>
-                  {userData?.rol_or_profesion || "Profesión no definida"}
+                  {userData?.titulo_especialidad}
                 </Text>
               </View>
               <View style={styles.subInfoRow}>
@@ -220,14 +238,9 @@ export default function PerfilProfesional() {
                   size={16}
                   color={COLORS.textGray}
                 />
-                <Text style={styles.locationText}>
-                  {userData?.ciudad || "Cochabamba, Bolivia"}
-                </Text>
+                <Text style={styles.locationText}>{userData?.ciudad}</Text>
               </View>
-              <Text style={styles.bioText}>
-                {userData?.biografia ||
-                  "Profesional comprometido con la calidad y la seguridad en cada proyecto."}
-              </Text>
+              <Text style={styles.bioText}>{userData?.biografia}</Text>
             </View>
           </View>
 
@@ -236,13 +249,15 @@ export default function PerfilProfesional() {
             <StatItem
               icon="medal-outline"
               label="Calificación"
-              value={userData?.rating ? String(userData.rating) : "0.0"} // 👈 Conectado dinámicamente
+              value={
+                userData?.rating ? Number(userData.rating).toFixed(1) : "0.0"
+              }
             />
             <View style={styles.dividerVertical} />
             <StatItem
               icon="briefcase-outline"
               label="Proyectos"
-              value={`${misTrabajos.length}`} // 👈 Usa la cantidad real de portafolios subidos
+              value={`${misTrabajos.length}`}
             />
             <View style={styles.dividerVertical} />
             <StatItem
@@ -274,7 +289,6 @@ export default function PerfilProfesional() {
           </View>
 
           <View style={styles.portfolioActionRow}>
-            {/* Cantidad dinámica basada en los registros reales */}
             <Text style={styles.countText}>
               {misTrabajos.length} trabajo(s) publicado(s)
             </Text>
@@ -286,7 +300,7 @@ export default function PerfilProfesional() {
             </TouchableOpacity>
           </View>
 
-          {/* Render dinámico de los primeros dos trabajos en tu grilla */}
+          {/* Render dinámico */}
           <View style={styles.portfolioGrid}>
             {misTrabajos.length > 0 ? (
               misTrabajos
@@ -353,6 +367,7 @@ export default function PerfilProfesional() {
   );
 }
 
+// Estilos se conservan idénticos debajo...
 // ... Tus estilos se quedan exactamente iguales abajo
 
 const styles = StyleSheet.create({

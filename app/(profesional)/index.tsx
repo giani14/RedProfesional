@@ -1,11 +1,14 @@
 import { supabase } from "@/lib/supabase";
 import { Ionicons } from "@expo/vector-icons";
 import { router, Stack } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Animated,
   Dimensions,
   Image,
+  Modal,
+  Pressable,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -16,6 +19,22 @@ import {
 
 const { width } = Dimensions.get("window");
 const COLUMN_WIDTH = (width - 60) / 2;
+const DRAWER_WIDTH = width * 0.78;
+
+// Accesos del menú lateral: replican la barra inferior + opciones adicionales
+const MENU_ITEMS: {
+  icon: any;
+  label: string;
+  route: string;
+}[] = [
+  { icon: "home-outline", label: "Inicio", route: "/(profesional)" },
+  { icon: "briefcase-outline", label: "Proyectos", route: "/(profesional)/proyecto" },
+  { icon: "copy-outline", label: "Solicitudes", route: "/(profesional)/solicitudes" },
+  { icon: "chatbubble-outline", label: "Mensajes", route: "/(profesional)/mensajes" },
+  { icon: "person-outline", label: "Perfil", route: "/(profesional)/perfil" },
+  { icon: "help-circle-outline", label: "Centro de ayuda", route: "/(profesional)/centroDeAyuda" },
+  { icon: "shield-checkmark-outline", label: "Privacidad", route: "/(profesional)/privacidad" },
+];
 
 const COLORS = {
   primaryBlue: "#1A4670",
@@ -63,16 +82,43 @@ function QuickAccessCard({
 export default function ProfesionalIndex() {
   const [loading, setLoading] = useState(true);
   const [tieneAvisosNuevos, setTieneAvisosNuevos] = useState(false);
+  const [menuVisible, setMenuVisible] = useState(false);
   const [userData, setUserData] = useState<{
     nombre: string;
     rol: string;
     avatar_url?: string;
   } | null>(null);
 
+  // Posición horizontal del panel lateral (oculto a la izquierda por defecto)
+  const slideAnim = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
+
   useEffect(() => {
     fetchUserProfile();
     validarNotificacionesPendientes();
   }, []);
+
+  const abrirMenu = () => {
+    setMenuVisible(true);
+    Animated.timing(slideAnim, {
+      toValue: 0,
+      duration: 250,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const cerrarMenu = () => {
+    Animated.timing(slideAnim, {
+      toValue: -DRAWER_WIDTH,
+      duration: 220,
+      useNativeDriver: true,
+    }).start(() => setMenuVisible(false));
+  };
+
+  const navegarDesdeMenu = (route: string) => {
+    cerrarMenu();
+    // Pequeña espera para que la animación de cierre se perciba antes de navegar
+    setTimeout(() => router.push(route as any), 180);
+  };
 
   const fetchUserProfile = async () => {
     try {
@@ -144,9 +190,80 @@ export default function ProfesionalIndex() {
     <SafeAreaView style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
 
+      {/* Menú lateral deslizable (drawer) */}
+      <Modal
+        visible={menuVisible}
+        transparent
+        animationType="none"
+        onRequestClose={cerrarMenu}
+        statusBarTranslucent
+      >
+        <View style={styles.drawerOverlay}>
+          {/* Zona oscura: al tocar fuera se cierra el menú */}
+          <Pressable style={styles.drawerBackdrop} onPress={cerrarMenu} />
+
+          <Animated.View
+            style={[
+              styles.drawerPanel,
+              { transform: [{ translateX: slideAnim }] },
+            ]}
+          >
+            {/* Cabecera del menú con datos del profesional */}
+            <View style={styles.drawerHeader}>
+              {userData?.avatar_url ? (
+                <Image
+                  source={{ uri: userData.avatar_url }}
+                  style={styles.drawerAvatar}
+                />
+              ) : (
+                <View style={[styles.drawerAvatar, styles.drawerInitials]}>
+                  <Text style={styles.drawerInitialsText}>
+                    {getInitials(userData?.nombre || "")}
+                  </Text>
+                </View>
+              )}
+              <Text style={styles.drawerName} numberOfLines={1}>
+                {userData?.nombre || "Profesional"}
+              </Text>
+              <View style={styles.drawerRoleBadge}>
+                <Text style={styles.drawerRoleText}>
+                  {userData?.rol || "Profesional"}
+                </Text>
+              </View>
+            </View>
+
+            {/* Opciones de navegación */}
+            <ScrollView contentContainerStyle={styles.drawerItems}>
+              {MENU_ITEMS.map((item) => (
+                <TouchableOpacity
+                  key={item.route}
+                  style={styles.drawerItem}
+                  activeOpacity={0.7}
+                  onPress={() => navegarDesdeMenu(item.route)}
+                >
+                  <View style={styles.drawerItemIcon}>
+                    <Ionicons
+                      name={item.icon}
+                      size={22}
+                      color={COLORS.primaryBlue}
+                    />
+                  </View>
+                  <Text style={styles.drawerItemLabel}>{item.label}</Text>
+                  <Ionicons
+                    name="chevron-forward"
+                    size={18}
+                    color="#9CA3AF"
+                  />
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </Animated.View>
+        </View>
+      </Modal>
+
       {/* Header con Menu y Notificaciones Activas */}
       <View style={styles.header}>
-        <TouchableOpacity>
+        <TouchableOpacity onPress={abrirMenu}>
           <Ionicons name="menu" size={30} color={COLORS.white} />
         </TouchableOpacity>
         <Text style={styles.headerLogo}>
@@ -357,5 +474,79 @@ const styles = StyleSheet.create({
     color: COLORS.textGray,
     textAlign: "center",
     marginTop: 5,
+  },
+  // ----- Menú lateral (drawer) -----
+  drawerOverlay: { flex: 1, flexDirection: "row" },
+  drawerBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.45)",
+  },
+  drawerPanel: {
+    width: DRAWER_WIDTH,
+    height: "100%",
+    backgroundColor: COLORS.white,
+    elevation: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 2, height: 0 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+  },
+  drawerHeader: {
+    backgroundColor: COLORS.primaryBlue,
+    paddingTop: 55,
+    paddingBottom: 25,
+    paddingHorizontal: 20,
+  },
+  drawerAvatar: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    marginBottom: 12,
+  },
+  drawerInitials: {
+    backgroundColor: "rgba(255,255,255,0.2)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  drawerInitialsText: {
+    color: COLORS.white,
+    fontSize: 26,
+    fontWeight: "bold",
+  },
+  drawerName: { color: COLORS.white, fontSize: 18, fontWeight: "bold" },
+  drawerRoleBadge: {
+    backgroundColor: COLORS.accentGold,
+    paddingHorizontal: 12,
+    paddingVertical: 3,
+    borderRadius: 8,
+    alignSelf: "flex-start",
+    marginTop: 8,
+  },
+  drawerRoleText: {
+    color: COLORS.primaryBlue,
+    fontWeight: "bold",
+    fontSize: 11,
+  },
+  drawerItems: { paddingVertical: 10 },
+  drawerItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+  },
+  drawerItemIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: COLORS.cardBlue,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 14,
+  },
+  drawerItemLabel: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: "600",
+    color: COLORS.textDark,
   },
 });

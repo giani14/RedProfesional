@@ -67,7 +67,7 @@ export default function HU09SubirPortafolio() {
       }
 
       const { data, error: errorBD } = await supabase
-        .from("profesionales-info")
+        .from("profesionales_info")
         .select("id, nombre, apellido, rol_or_profesion, ciudad")
         .eq("id", user.id)
         .single();

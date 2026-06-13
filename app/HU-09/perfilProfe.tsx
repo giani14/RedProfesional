@@ -151,7 +151,6 @@ export default function PerfilProfesional() {
         biografia:
           infoLaboralData?.biografia ||
           "Profesional comprometido con la calidad y la seguridad.",
-        rating: infoLaboralData?.rating || 0.0,
       });
 
       // 5. Traer los trabajos publicados reales desde el servicio

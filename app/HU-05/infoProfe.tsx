@@ -637,7 +637,7 @@ const styles = StyleSheet.create({
   },
   modalHeader: {
     flexDirection: "row",
-    justifyBetween: "space-between",
+    justifyContent: "space-between",
     alignItems: "center",
     paddingHorizontal: 24,
     marginBottom: 15,
